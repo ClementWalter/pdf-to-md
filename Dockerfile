@@ -6,12 +6,6 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Install system deps required by Marker (OCR, image processing)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libgl1 \
-    libglib2.0-0 \
-    && rm -rf /var/lib/apt/lists/*
-
 # Install uv for fast dependency resolution
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
@@ -19,12 +13,8 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 COPY pyproject.toml ./
 COPY src/ src/
 
-# Install production dependencies including the ML extras (marker-pdf + torch)
-RUN uv pip install --system --no-cache ".[ml]"
-
-# Pre-download Marker ML models so they're baked into the image
-# (avoids ~3GB download on first request at runtime)
-RUN python -c "from marker.models import create_model_dict; create_model_dict()"
+# Install production dependencies (pymupdf4llm is lightweight, no ML models needed)
+RUN uv pip install --system --no-cache "."
 
 # Create cache directory
 RUN mkdir -p /app/cache

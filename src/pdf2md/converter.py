@@ -1,38 +1,21 @@
-"""Wrapper around Marker for PDF-to-Markdown conversion.
+"""PDF-to-Markdown conversion using pymupdf4llm.
 
-Marker is imported lazily because it pulls in torch (~2 GB). This lets the
-rest of the application (config, cache, downloader, routes) load without
-requiring the ML stack — useful for testing and lightweight operations.
+Uses PyMuPDF's rule-based extraction (no ML models, no GPU needed) which runs
+in seconds with minimal memory — suitable for serverless containers.
 """
 
 import asyncio
+import io
 import logging
-import re
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# Singleton converter: loading models is expensive (~2GB), so we do it once
-_converter = None
-
-
-def _get_converter():
-    """Lazily create and cache the PdfConverter with loaded models."""
-    global _converter
-    if _converter is None:
-        from marker.converters.pdf import PdfConverter
-        from marker.models import create_model_dict
-
-        logger.info("Loading Marker models (first request, this takes ~30s)...")
-        _converter = PdfConverter(artifact_dict=create_model_dict())
-        logger.info("Marker models loaded successfully")
-    return _converter
-
 
 class ConversionError(Exception):
-    """Raised when Marker fails to convert a PDF."""
+    """Raised when PDF conversion fails."""
 
     def __init__(self, message: str, status_code: int = 400) -> None:
         super().__init__(message)
@@ -48,39 +31,58 @@ class ConversionTimeoutError(ConversionError):
 
 @dataclass
 class ConversionResult:
-    """Output of a successful PDF→Markdown conversion."""
+    """Output of a successful PDF to Markdown conversion."""
 
     markdown: str
     images: dict[str, bytes] = field(default_factory=dict)
     page_count: int = 0
 
 
-def _run_marker(pdf_path: str) -> ConversionResult:
-    """Synchronous Marker invocation — runs in a thread via asyncio.
+def _run_pymupdf(pdf_path: str) -> ConversionResult:
+    """Synchronous pymupdf4llm invocation — runs in a thread via asyncio.
 
     Separated so it can be easily mocked in tests.
     """
     try:
-        from marker.output import text_from_rendered
+        import pymupdf4llm
+        import pymupdf
     except ImportError as exc:
         raise ConversionError(
-            "Marker is not installed. Install with: pip install marker-pdf"
+            "pymupdf4llm is not installed. Install with: pip install pymupdf4llm"
         ) from exc
 
     try:
-        converter = _get_converter()
-        rendered = converter(pdf_path)
-        markdown, _, images = text_from_rendered(rendered)
+        doc = pymupdf.open(pdf_path)
+        page_count = len(doc)
+        doc.close()
+
+        # write_images=True extracts images and references them in markdown
+        markdown = pymupdf4llm.to_markdown(
+            pdf_path,
+            write_images=True,
+            image_path="/tmp/pymupdf_images",
+        )
     except Exception as exc:
-        logger.exception("Marker failed to convert %s", pdf_path)
+        logger.exception("pymupdf4llm failed to convert %s", pdf_path)
         raise ConversionError("Could not parse PDF.") from exc
 
-    # Count pages from metadata's page_stats list
-    page_count = 0
-    try:
-        page_count = len(rendered.metadata.get("page_stats", []))
-    except (AttributeError, TypeError):
-        page_count = len(re.findall(r"\n---\n", markdown)) + 1
+    # Collect extracted images from the temp directory
+    images: dict[str, bytes] = {}
+    image_dir = Path("/tmp/pymupdf_images")
+    if image_dir.exists():
+        for img_file in image_dir.iterdir():
+            if img_file.is_file():
+                images[img_file.name] = img_file.read_bytes()
+                # Replace absolute path references with just the filename
+                # (main.py will rewrite these to /images/<cache_key>/<filename>)
+                markdown = markdown.replace(str(img_file), img_file.name)
+                # Also handle the relative path form
+                markdown = markdown.replace(
+                    f"/tmp/pymupdf_images/{img_file.name}", img_file.name
+                )
+        # Clean up extracted images
+        for img_file in image_dir.iterdir():
+            img_file.unlink(missing_ok=True)
 
     return ConversionResult(
         markdown=markdown,
@@ -95,19 +97,19 @@ async def convert_pdf(
     timeout: int = 120,
     cache_key: str = "",
 ) -> ConversionResult:
-    """Convert raw PDF bytes to markdown using Marker.
+    """Convert raw PDF bytes to markdown using pymupdf4llm.
 
-    Runs the CPU/GPU-bound conversion in a thread pool to avoid blocking
-    the async event loop.  Enforces a timeout to prevent runaway conversions.
+    Runs the conversion in a thread pool to avoid blocking the async event loop.
+    Enforces a timeout to prevent runaway conversions.
     """
-    # Write PDF to a temp file because Marker expects a filesystem path
+    # Write PDF to a temp file because pymupdf expects a filesystem path
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
         tmp.write(pdf_content)
         tmp_path = tmp.name
 
     try:
         result = await asyncio.wait_for(
-            asyncio.to_thread(_run_marker, tmp_path),
+            asyncio.to_thread(_run_pymupdf, tmp_path),
             timeout=timeout,
         )
     except asyncio.TimeoutError as exc:
