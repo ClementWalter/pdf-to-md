@@ -46,33 +46,27 @@ def _run_marker(pdf_path: str) -> ConversionResult:
     """
     try:
         from marker.converters.pdf import PdfConverter
-        from marker.config.parser import ConfigParser
+        from marker.models import create_model_dict
+        from marker.output import text_from_rendered
     except ImportError as exc:
         raise ConversionError(
             "Marker is not installed. Install with: pip install marker-pdf"
         ) from exc
 
     try:
-        config_parser = ConfigParser({"output_format": "markdown"})
-        converter = PdfConverter(config=config_parser.generate_config_dict())
+        # create_model_dict() loads the ML models needed for conversion
+        converter = PdfConverter(artifact_dict=create_model_dict())
         rendered = converter(pdf_path)
+        markdown, _, images = text_from_rendered(rendered)
     except Exception as exc:
         logger.exception("Marker failed to convert %s", pdf_path)
         raise ConversionError("Could not parse PDF.") from exc
 
-    markdown = rendered.markdown
-
-    # Extract images from Marker's output
-    images: dict[str, bytes] = {}
-    for name, image in rendered.images.items():
-        images[name] = image
-
-    # Count pages (Marker exposes this on the document metadata)
+    # Count pages from metadata or estimate from page breaks
     page_count = 0
     try:
         page_count = rendered.metadata.get("page_count", 0)
     except (AttributeError, TypeError):
-        # Fallback: estimate from page break markers
         page_count = len(re.findall(r"\n---\n", markdown)) + 1
 
     return ConversionResult(
