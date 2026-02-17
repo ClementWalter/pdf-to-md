@@ -1,0 +1,75 @@
+# CODE REVIEW — pdf2md
+
+## What Was Implemented
+
+{props.whatWasDone}
+
+## Files Created
+- {props.filesCreated}
+
+## Files Modified
+- {props.filesModified}
+
+## Test Results
+
+- Tests passed: {props.testsPassed}
+- Tests passing: {props.testsPassCount}
+- Tests failing: {props.testsFailCount}
+- Failing summary: {props.failingSummary}
+
+## Your Task
+
+You are reviewing this implementation against the **PRD.md** specification AND for code quality.
+Read the actual source files — do NOT just trust the summaries above.
+
+## Review Checklist
+
+### 1. PRD Compliance
+
+Read `PRD.md` and verify:
+- All routes implemented per section 3.2 (R1, R2, R3)
+- Core conversion requirements met per section 3.1 (F1-F6)
+- Image handling per section 3.3 (I1-I4)
+- Caching per section 3.4 (C1-C5)
+- Error responses per section 6
+- Edge cases per section 7
+- Configuration via environment variables per section 5.4
+
+### 2. Python Best Practices
+
+- Module-level docstrings on every file
+- Proper logging (no print statements)
+- Type hints on function signatures
+- pydantic-settings for configuration
+- Async where appropriate (FastAPI async routes)
+- Proper error handling with HTTPException
+
+### 3. Test Quality
+
+- One assertion per test (no loops over fixture data)
+- Pytest fixtures for shared setup
+- Parametrize for multiple inputs
+- Unit tests for each module (converter, cache, downloader)
+- Integration tests for routes (TestClient)
+- Edge case coverage
+
+### 4. Project Structure
+
+- `pyproject.toml` with proper dependencies and metadata
+- Source code under `src/pdf2md/`
+- Tests under `tests/`
+- Dockerfile and docker-compose.yml present
+- No hardcoded secrets or credentials
+
+## Severity Guide
+
+- **critical**: Missing core functionality, wrong behavior, security vulnerability
+- **major**: Missing test coverage, incomplete implementation, bad patterns
+- **minor**: Style issues, missing docstrings, non-blocking improvements
+- **none**: Everything looks good — APPROVE
+
+## REQUIRED OUTPUT
+
+You MUST end your response with a JSON object matching this schema:
+
+{props.schema}

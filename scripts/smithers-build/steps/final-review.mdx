@@ -1,0 +1,58 @@
+# FINAL REVIEW — pdf2md (Pass {props.pass})
+
+## Implementation Summary
+
+What was done: {props.whatWasDone}
+Implementer believes complete: {props.believesComplete}
+
+## Test Results
+
+- Tests passed: {props.testsPassed}
+- Tests passing: {props.testsPassCount}
+- Tests failing: {props.testsFailCount}
+
+## Review Results
+
+- Review severity: {props.reviewSeverity} (approved: {props.reviewApproved})
+
+## Your Task
+
+You are the GATEKEEPER. Decide whether pdf2md is complete and ready to ship.
+
+Read the actual source files to verify — do NOT just trust the summaries above.
+Read `PRD.md` to verify against the full specification.
+
+## Decision Criteria
+
+Set `readyToMoveOn: true` ONLY if ALL of these are met:
+
+1. **Tests pass**: `uv run pytest` succeeds with all tests passing
+2. **PRD compliance**: All P0 requirements from PRD sections 3.1-3.4 are implemented
+3. **Routes work**: All three routes (`GET /`, `GET /<host>/<path>`, `GET /images/...`) are implemented
+4. **Error handling**: All error responses per PRD section 6 are implemented
+5. **Code quality**: Review severity is "none" or "minor" only
+6. **Quality score >= 7**: Overall implementation quality
+7. **Project structure**: pyproject.toml, Dockerfile, docker-compose.yml all present
+
+Set `readyToMoveOn: false` if ANY of these:
+- Tests failing
+- Review has "critical" or "major" issues
+- Core P0 requirements are missing
+- Routes are not implemented
+- No tests exist
+
+## Reasoning
+
+Your `reasoning` field is CRITICAL — it feeds back into the next pass's Implement step.
+Be specific about:
+- What's still missing
+- What needs to change
+- Which PRD requirements are not met
+- Which tests are missing
+- What the implementer should focus on next
+
+## REQUIRED OUTPUT
+
+You MUST end your response with a JSON object matching this schema:
+
+{props.schema}

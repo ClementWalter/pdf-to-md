@@ -1,0 +1,24 @@
+{
+  "name": "pdf2md-smithers",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bunx smithers run workflow.tsx"
+  },
+  "dependencies": {
+    "smithers-orchestrator": "latest",
+    "zod": "^4.3.6",
+    "@ai-sdk/anthropic": "^1.0.0",
+    "@ai-sdk/openai": "^1.0.0"
+  },
+  "patchedDependencies": {
+    "smithers-orchestrator@0.6.0": "patches/smithers-orchestrator@0.6.0.patch"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.0.0",
+    "@types/react-reconciler": "^0.28.9",
+    "typescript": "^5.5.0"
+  }
+}

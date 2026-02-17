@@ -1,0 +1,37 @@
+# TEST — pdf2md
+
+## What Was Implemented
+
+{props.whatWasDone}
+
+## Files Created
+- {props.filesCreated}
+
+## Files Modified
+- {props.filesModified}
+
+## Instructions
+
+1. **Run `uv run pytest --tb=short`** — run the full test suite
+2. **If tests fail**, analyze the output:
+   - Identify which tests fail and why
+   - Check if it's an import error, assertion failure, or exception
+   - Note the exact error messages
+3. **If there are import errors or missing dependencies**, fix them:
+   - Update `pyproject.toml` with missing dependencies
+   - Run `uv sync` to install
+   - Re-run tests to verify
+   - Commit fixes: `fix(deps): add missing dependency`
+4. **Check test coverage against PRD**:
+   - Are all routes tested? (`GET /`, `GET /<host>/<path>`, `GET /images/...`)
+   - Are error cases tested? (400, 404, 413, 502, 504)
+   - Are edge cases tested? (large PDFs, non-PDF URLs, concurrent requests)
+   - Is the cache tested? (hit, miss, TTL)
+   - Is the downloader tested? (URL validation, timeout, size limit)
+   - Is the converter tested? (basic conversion, image extraction, LaTeX)
+
+## REQUIRED OUTPUT
+
+You MUST end your response with a JSON object matching this schema:
+
+{props.schema}

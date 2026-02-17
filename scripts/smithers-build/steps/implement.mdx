@@ -1,0 +1,89 @@
+# IMPLEMENTATION — pdf2md (Pass {props.pass})
+
+## Context
+
+Read the PRD: `PRD.md` in the repository root.
+
+## Project Structure (target)
+
+```
+pdf-to-md/
+├── pyproject.toml
+├── Dockerfile
+├── docker-compose.yml
+├── src/
+│   └── pdf2md/
+│       ├── __init__.py
+│       ├── main.py          # FastAPI app, routes
+│       ├── converter.py     # Marker wrapper, PDF→MD logic
+│       ├── cache.py         # Cache read/write (disk)
+│       ├── downloader.py    # PDF fetching with validation
+│       └── config.py        # Settings via pydantic-settings
+├── tests/
+│   ├── test_converter.py
+│   ├── test_cache.py
+│   ├── test_downloader.py
+│   └── test_routes.py
+└── .github/
+    └── workflows/
+        └── deploy.yml
+```
+
+{props.previousWork ? `## Previous Implementation (Pass ${Number(props.pass) - 1})
+
+What was done: ${props.previousWork}
+${props.previousNextUnit ? `Next smallest unit identified: ${props.previousNextUnit}` : ""}
+` : ""}
+
+{props.failingTests ? `## FAILING TESTS — FIX THESE FIRST
+
+${props.failingTests}
+` : ""}
+
+{props.reviewFeedback ? `## Review Feedback (from previous pass)
+
+${props.reviewFeedback}
+` : ""}
+
+{props.finalReviewFeedback ? `## Final Review Feedback (from previous pass)
+
+${props.finalReviewFeedback}
+` : ""}
+
+## Rules
+
+1. **Read the PRD** (`PRD.md`) before writing any code
+2. **Implement the SMALLEST ATOMIC UNIT** of work possible — one module, one route, one test file
+3. **Use Python 3.11+** with FastAPI, pydantic-settings, and Marker
+4. **Use `uv`** as the package manager — configure `pyproject.toml` with dependencies
+5. **Use proper logging** (`import logging`) — NEVER use print statements
+6. **Add module-level docstrings** to every Python file
+7. **Write tests alongside implementation** — use pytest with fixtures and parametrize
+8. **One test = one assertion** — no looping over fixture data
+9. **Run tests after every change**: `uv run pytest` to verify nothing is broken
+10. **Follow the PRD routes exactly**:
+    - `GET /` → returns usage instructions as `text/markdown`
+    - `GET /<host>/<path>` → converts PDF and returns markdown
+    - `GET /images/<hash>/<filename>` → serves extracted images
+11. **Cache results on disk** using SHA-256 of the normalized source URL
+12. **Handle errors** per PRD section 6: 400, 404, 413, 502, 504 — all as `text/markdown`
+13. **Handle edge cases** per PRD section 7: auth-protected PDFs, scanned PDFs, corrupted PDFs, large PDFs, non-PDF URLs, concurrent requests
+
+## GIT COMMIT RULES
+
+- Atomic commits — one logical change per commit
+- Format: "type(scope): description"
+  Examples:
+  - feat(routes): add PDF conversion endpoint with URL rewrite
+  - feat(cache): implement SHA-256 based disk cache
+  - test(downloader): add URL validation tests
+  - fix(converter): handle corrupted PDF gracefully
+- After each commit: `git pull --rebase origin main && git push`
+- NEVER create branches
+- NEVER commit .db files or __pycache__
+
+## REQUIRED OUTPUT
+
+You MUST end your response with a JSON object matching this schema:
+
+{props.schema}
