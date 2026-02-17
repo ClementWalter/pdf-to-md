@@ -2,8 +2,8 @@
 //
 // Three agent roles: implementer (Codex), reviewer (Claude), final reviewer (Claude)
 
-import { ClaudeCodeAgent, CodexAgent } from "smithers-orchestrator";
-import { REPO_ROOT, MODELS } from "./config.js";
+import { ClaudeCodeAgent } from "smithers-orchestrator";
+import { MODELS, REPO_ROOT } from "./config.js";
 
 // ─────────────────────────────────────────────────────────────
 // Shared system prompt sections
@@ -111,7 +111,7 @@ function buildSystemPrompt(role: string): string {
 
 /** Codex agent with full write access for implementing Python code */
 export function makeImplementer() {
-  return new CodexAgent({
+  return new ClaudeCodeAgent({
     model: MODELS.implementer,
     systemPrompt: buildSystemPrompt(
       "Implementer — Write Python code, FastAPI routes, tests, and configuration",
