@@ -75,10 +75,10 @@ def _run_marker(pdf_path: str) -> ConversionResult:
         logger.exception("Marker failed to convert %s", pdf_path)
         raise ConversionError("Could not parse PDF.") from exc
 
-    # Count pages from metadata or estimate from page breaks
+    # Count pages from metadata's page_stats list
     page_count = 0
     try:
-        page_count = rendered.metadata.get("page_count", 0)
+        page_count = len(rendered.metadata.get("page_stats", []))
     except (AttributeError, TypeError):
         page_count = len(re.findall(r"\n---\n", markdown)) + 1
 
