@@ -22,6 +22,10 @@ COPY src/ src/
 # Install production dependencies including the ML extras (marker-pdf + torch)
 RUN uv pip install --system --no-cache ".[ml]"
 
+# Pre-download Marker ML models so they're baked into the image
+# (avoids ~3GB download on first request at runtime)
+RUN python -c "from marker.models import create_model_dict; create_model_dict()"
+
 # Create cache directory
 RUN mkdir -p /app/cache
 
