@@ -36,20 +36,15 @@ jobs:
           cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
           cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
 
-      - name: Install Scaleway CLI
-        run: |
-          curl -sL https://github.com/scaleway/scaleway-cli/releases/latest/download/scaleway-cli_linux_amd64 -o /usr/local/bin/scw
-          chmod +x /usr/local/bin/scw
-
-      - name: Configure Scaleway CLI
-        run: |
-          scw init \
-            access-key=${{ secrets.SCW_ACCESS_KEY }} \
-            secret-key=${{ secrets.SCW_SECRET_KEY }} \
-            default-project-id=${{ secrets.SCW_PROJECT_ID }} \
-            default-organization-id=${{ secrets.SCW_PROJECT_ID }} \
-            install-autocomplete=false \
-            send-telemetry=false
+      - name: Install and configure Scaleway CLI
+        uses: scaleway/action-scw@v0
+        with:
+          save-config: true
+          export-config: true
+          access-key: ${{ secrets.SCW_ACCESS_KEY }}
+          secret-key: ${{ secrets.SCW_SECRET_KEY }}
+          default-project-id: ${{ secrets.SCW_PROJECT_ID }}
+          default-organization-id: ${{ secrets.SCW_PROJECT_ID }}
 
       - name: Deploy container
         run: |
