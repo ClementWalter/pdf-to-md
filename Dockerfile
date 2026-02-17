@@ -15,14 +15,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install uv for fast dependency resolution
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-# Copy project metadata first for layer caching
+# Copy full project (pyproject.toml + source) to build the package
 COPY pyproject.toml ./
+COPY src/ src/
 
 # Install production dependencies including the ML extras (marker-pdf + torch)
-RUN uv pip install --system --no-cache . ".[ml]"
-
-# Copy application code
-COPY src/ src/
+RUN uv pip install --system --no-cache ".[ml]"
 
 # Create cache directory
 RUN mkdir -p /app/cache

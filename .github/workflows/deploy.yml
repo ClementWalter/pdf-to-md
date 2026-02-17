@@ -8,6 +8,7 @@ on:
 env:
   REGISTRY: rg.fr-par.scw.cloud/pdf2md
   IMAGE_NAME: pdf2md
+  CONTAINER_ID: 9be164de-1e6f-4fc7-ab94-8b79e6cd8b43
 
 jobs:
   deploy:
@@ -49,65 +50,17 @@ jobs:
       - name: Deploy container
         run: |
           IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
-          NAMESPACE_ID="${{ secrets.SCW_CONTAINER_NAMESPACE_ID }}"
 
-          # Check if container already exists
-          CONTAINER_ID=$(scw container container list namespace-id="$NAMESPACE_ID" -o json | \
-            python3 -c "import sys,json; cs=json.load(sys.stdin); print(cs[0]['id'] if cs else '')" 2>/dev/null || echo "")
+          echo "Updating container ${{ env.CONTAINER_ID }} with image $IMAGE..."
+          scw container container update \
+            "${{ env.CONTAINER_ID }}" \
+            registry-image="$IMAGE" \
+            -o json
 
-          if [ -z "$CONTAINER_ID" ]; then
-            echo "Creating new container..."
-            RESULT=$(scw container container create \
-              namespace-id="$NAMESPACE_ID" \
-              name=pdf2md \
-              registry-image="$IMAGE" \
-              port=8000 \
-              min-scale=0 \
-              max-scale=1 \
-              memory-limit=4096 \
-              cpu-limit=4000 \
-              timeout=5m \
-              privacy=public \
-              http-option=redirected \
-              sandbox=v2 \
-              deploy=true \
-              environment-variables.PDF2MD_CACHE_DIR=/app/cache \
-              environment-variables.PDF2MD_MAX_PDF_SIZE_MB=50 \
-              environment-variables.PDF2MD_CACHE_TTL_DAYS=30 \
-              environment-variables.PDF2MD_DOWNLOAD_TIMEOUT=30 \
-              environment-variables.PDF2MD_CONVERSION_TIMEOUT=120 \
-              -o json -w)
-            CONTAINER_ID=$(echo "$RESULT" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
-            echo "Created container: $CONTAINER_ID"
-          else
-            echo "Updating existing container $CONTAINER_ID..."
-            scw container container update \
-              "$CONTAINER_ID" \
-              registry-image="$IMAGE" \
-              -o json
-            echo "Deploying..."
-            scw container container deploy "$CONTAINER_ID" -w -o json
-          fi
+          echo "Deploying..."
+          scw container container deploy "${{ env.CONTAINER_ID }}" -w -o json
 
           # Get the container domain URL
-          CONTAINER_INFO=$(scw container container get "$CONTAINER_ID" -o json)
+          CONTAINER_INFO=$(scw container container get "${{ env.CONTAINER_ID }}" -o json)
           DOMAIN=$(echo "$CONTAINER_INFO" | python3 -c "import sys,json; print(json.load(sys.stdin)['domain_name'])")
-          echo "CONTAINER_DOMAIN=$DOMAIN" >> "$GITHUB_ENV"
           echo "Deployed at: https://$DOMAIN"
-
-      - name: Update container domain env var
-        run: |
-          CONTAINER_ID=$(scw container container list namespace-id="${{ secrets.SCW_CONTAINER_NAMESPACE_ID }}" -o json | \
-            python3 -c "import sys,json; cs=json.load(sys.stdin); print(cs[0]['id'])")
-          # Set the public domain so image URLs resolve correctly
-          scw container container update \
-            "$CONTAINER_ID" \
-            environment-variables.PDF2MD_DOMAIN="${{ env.CONTAINER_DOMAIN }}" \
-            environment-variables.PDF2MD_CACHE_DIR=/app/cache \
-            environment-variables.PDF2MD_MAX_PDF_SIZE_MB=50 \
-            environment-variables.PDF2MD_CACHE_TTL_DAYS=30 \
-            environment-variables.PDF2MD_DOWNLOAD_TIMEOUT=30 \
-            environment-variables.PDF2MD_CONVERSION_TIMEOUT=120 \
-            -o json
-          scw container container deploy "$CONTAINER_ID" -w -o json
-          echo "Container redeployed with domain set to: ${{ env.CONTAINER_DOMAIN }}"

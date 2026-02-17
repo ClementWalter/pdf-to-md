@@ -68,6 +68,12 @@ def _error_md(message: str) -> str:
 # ---------------------------------------------------------------------------
 
 
+@app.get("/health")
+async def health() -> PlainTextResponse:
+    """Liveness probe for container orchestrators."""
+    return PlainTextResponse("ok")
+
+
 @app.get("/")
 async def root() -> Response:
     """Return usage instructions as text/markdown."""
