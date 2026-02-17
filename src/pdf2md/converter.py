@@ -14,6 +14,22 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+# Singleton converter: loading models is expensive (~2GB), so we do it once
+_converter = None
+
+
+def _get_converter():
+    """Lazily create and cache the PdfConverter with loaded models."""
+    global _converter
+    if _converter is None:
+        from marker.converters.pdf import PdfConverter
+        from marker.models import create_model_dict
+
+        logger.info("Loading Marker models (first request, this takes ~30s)...")
+        _converter = PdfConverter(artifact_dict=create_model_dict())
+        logger.info("Marker models loaded successfully")
+    return _converter
+
 
 class ConversionError(Exception):
     """Raised when Marker fails to convert a PDF."""
@@ -45,8 +61,6 @@ def _run_marker(pdf_path: str) -> ConversionResult:
     Separated so it can be easily mocked in tests.
     """
     try:
-        from marker.converters.pdf import PdfConverter
-        from marker.models import create_model_dict
         from marker.output import text_from_rendered
     except ImportError as exc:
         raise ConversionError(
@@ -54,8 +68,7 @@ def _run_marker(pdf_path: str) -> ConversionResult:
         ) from exc
 
     try:
-        # create_model_dict() loads the ML models needed for conversion
-        converter = PdfConverter(artifact_dict=create_model_dict())
+        converter = _get_converter()
         rendered = converter(pdf_path)
         markdown, _, images = text_from_rendered(rendered)
     except Exception as exc:
