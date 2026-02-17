@@ -6,3 +6,7 @@ __pycache__/
 dist/
 .env
 cache/
+.venv/
+*.egg-info/
+.pytest_cache/
+uv.lock

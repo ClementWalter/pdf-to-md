@@ -1,0 +1,19 @@
+services:
+  pdf2md:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - PDF2MD_DOMAIN=${PDF2MD_DOMAIN:-localhost:8000}
+      - PDF2MD_CACHE_DIR=/app/cache
+      - PDF2MD_MAX_PDF_SIZE_MB=${PDF2MD_MAX_PDF_SIZE_MB:-50}
+      - PDF2MD_CACHE_TTL_DAYS=${PDF2MD_CACHE_TTL_DAYS:-30}
+      - PDF2MD_DOWNLOAD_TIMEOUT=${PDF2MD_DOWNLOAD_TIMEOUT:-30}
+      - PDF2MD_CONVERSION_TIMEOUT=${PDF2MD_CONVERSION_TIMEOUT:-120}
+    volumes:
+      # Persist cache across container restarts
+      - pdf2md-cache:/app/cache
+    restart: unless-stopped
+
+volumes:
+  pdf2md-cache:
