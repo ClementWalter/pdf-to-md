@@ -51,16 +51,22 @@ jobs:
         run: |
           IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
 
+          # Get the container's public domain for the PDF2MD_DOMAIN env var
+          DOMAIN=$(scw container container get "${{ env.CONTAINER_ID }}" -o json | \
+            python3 -c "import sys,json; print(json.load(sys.stdin)['domain_name'])")
+
           echo "Updating container ${{ env.CONTAINER_ID }} with image $IMAGE..."
           scw container container update \
             "${{ env.CONTAINER_ID }}" \
             registry-image="$IMAGE" \
+            environment-variables.PDF2MD_DOMAIN="$DOMAIN" \
+            environment-variables.PDF2MD_CACHE_DIR=/app/cache \
+            environment-variables.PDF2MD_MAX_PDF_SIZE_MB=50 \
+            environment-variables.PDF2MD_CACHE_TTL_DAYS=30 \
+            environment-variables.PDF2MD_DOWNLOAD_TIMEOUT=30 \
+            environment-variables.PDF2MD_CONVERSION_TIMEOUT=300 \
             -o json
 
           echo "Deploying..."
           scw container container deploy "${{ env.CONTAINER_ID }}" -w -o json
-
-          # Get the container domain URL
-          CONTAINER_INFO=$(scw container container get "${{ env.CONTAINER_ID }}" -o json)
-          DOMAIN=$(echo "$CONTAINER_INFO" | python3 -c "import sys,json; print(json.load(sys.stdin)['domain_name'])")
           echo "Deployed at: https://$DOMAIN"
