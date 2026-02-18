@@ -119,6 +119,7 @@ class DiskCache:
         }
         (entry_dir / "meta.json").write_text(json.dumps(meta))
 
+        self._increment_counter()
         logger.info("Cached conversion for %s (%d pages, %d images)", url, page_count, len(images))
 
         return CacheEntry(
@@ -133,6 +134,37 @@ class DiskCache:
         """Return the filesystem path for a cached image, or None if missing."""
         path = self._entry_dir(cache_key) / "images" / filename
         return path if path.exists() else None
+
+    def stats(self) -> dict:
+        """Return usage statistics: total conversions and current cache size."""
+        stats_path = self._cache_dir / "_stats.json"
+        total = 0
+        if stats_path.exists():
+            try:
+                total = json.loads(stats_path.read_text()).get("total_conversions", 0)
+            except (json.JSONDecodeError, OSError):
+                pass
+
+        # Count current valid cache entries (directories with meta.json)
+        cached = sum(
+            1
+            for d in self._cache_dir.iterdir()
+            if d.is_dir() and (d / "meta.json").exists()
+        )
+
+        return {"total_conversions": total, "cached_pdfs": cached}
+
+    def _increment_counter(self) -> None:
+        """Atomically increment the total conversions counter on disk."""
+        stats_path = self._cache_dir / "_stats.json"
+        total = 0
+        if stats_path.exists():
+            try:
+                total = json.loads(stats_path.read_text()).get("total_conversions", 0)
+            except (json.JSONDecodeError, OSError):
+                pass
+        total += 1
+        stats_path.write_text(json.dumps({"total_conversions": total}))
 
     def _evict(self, cache_key: str) -> None:
         """Remove a cache entry from disk."""

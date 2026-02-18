@@ -87,6 +87,26 @@ class TestSkillRoute:
         assert "unpdf.it" in response.text
 
 
+class TestStatsRoute:
+    """GET /stats should return usage statistics as JSON."""
+
+    def test_stats_returns_200(self, client) -> None:
+        response = client.get("/stats")
+        assert response.status_code == 200
+
+    def test_stats_returns_json(self, client) -> None:
+        response = client.get("/stats")
+        assert "application/json" in response.headers["content-type"]
+
+    def test_stats_contains_total_conversions(self, client) -> None:
+        data = client.get("/stats").json()
+        assert "total_conversions" in data
+
+    def test_stats_contains_cached_pdfs(self, client) -> None:
+        data = client.get("/stats").json()
+        assert "cached_pdfs" in data
+
+
 class TestLlmsTxt:
     """GET /llms.txt and /llms-full.txt should return LLM-friendly site info."""
 

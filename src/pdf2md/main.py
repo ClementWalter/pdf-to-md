@@ -13,7 +13,7 @@ import time
 from functools import lru_cache
 
 from fastapi import FastAPI, Request, Response
-from fastapi.responses import HTMLResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 
 from pdf2md.cache import DiskCache, url_to_cache_key
 from pdf2md.config import Settings
@@ -247,6 +247,13 @@ async def llms_full_txt() -> Response:
         "- GitHub: https://github.com/ClementWalter/pdf-to-md\n"
     )
     return _markdown_response(content)
+
+
+@app.get("/stats")
+async def stats() -> JSONResponse:
+    """Return usage statistics as JSON for the landing page counter."""
+    cache = _get_cache()
+    return JSONResponse(cache.stats())
 
 
 @app.get("/images/{cache_key}/{filename:path}")

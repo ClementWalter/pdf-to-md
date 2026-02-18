@@ -116,3 +116,24 @@ class TestDiskCacheImagePath:
 
     def test_image_path_returns_none_when_missing(self, cache) -> None:
         assert cache.image_path("nonexistent_key", "nope.png") is None
+
+
+class TestDiskCacheStats:
+    """Verify usage statistics tracking."""
+
+    def test_stats_starts_at_zero(self, cache) -> None:
+        assert cache.stats()["total_conversions"] == 0
+
+    def test_stats_increments_on_put(self, cache) -> None:
+        cache.put("https://example.com/a.pdf", "# A", {}, page_count=1)
+        assert cache.stats()["total_conversions"] == 1
+
+    def test_stats_increments_multiple_times(self, cache) -> None:
+        cache.put("https://example.com/a.pdf", "# A", {}, page_count=1)
+        cache.put("https://example.com/b.pdf", "# B", {}, page_count=2)
+        assert cache.stats()["total_conversions"] == 2
+
+    def test_stats_cached_pdfs_counts_entries(self, cache) -> None:
+        cache.put("https://example.com/a.pdf", "# A", {}, page_count=1)
+        cache.put("https://example.com/b.pdf", "# B", {}, page_count=1)
+        assert cache.stats()["cached_pdfs"] == 2
