@@ -442,6 +442,8 @@ other outside sources including MetaMask and OpenSea...</pre>
     <a href="https://{domain}/skill">SKILL.md</a>
     &middot;
     <a href="https://{domain}/llms.txt">llms.txt</a>
+    &middot;
+    <a href="https://moltbook.com/post/9cbb2f7a-232c-4cd7-9d91-ca5d90059534">Announcement</a>
   </footer>
 </div>
 
