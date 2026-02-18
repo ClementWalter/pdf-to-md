@@ -10,3 +10,5 @@ cache/
 *.egg-info/
 .pytest_cache/
 uv.lock
+AGENTS.md
+CLAUDE.md
