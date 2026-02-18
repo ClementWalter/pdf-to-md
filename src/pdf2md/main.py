@@ -79,16 +79,93 @@ async def root() -> Response:
     """Return usage instructions as text/markdown."""
     settings = _get_settings()
     body = (
-        "# pdf2md\n\n"
+        "# unpdf.it\n\n"
         "Convert any PDF to markdown by prepending this domain to the PDF URL.\n\n"
         "## Usage\n\n"
         "Given a PDF at:\n"
         "  https://arxiv.org/pdf/2301.00001v1.pdf\n\n"
         "Get its markdown at:\n"
         f"  https://{settings.domain}/arxiv.org/pdf/2301.00001v1.pdf\n\n"
-        "Images are extracted and available at their referenced URLs within the markdown.\n"
+        "Images are extracted and available at their referenced URLs within the markdown.\n\n"
+        "## Add as an AI Agent Skill\n\n"
+        "unpdf.it follows the [Agent Skills](https://agentskills.io) open standard.\n"
+        "Install it so your AI coding agent automatically converts PDFs to markdown.\n\n"
+        "### Claude Code\n\n"
+        "```bash\n"
+        "mkdir -p ~/.claude/skills/unpdf\n"
+        f"curl -s https://{settings.domain}/skill > ~/.claude/skills/unpdf/SKILL.md\n"
+        "```\n\n"
+        "### OpenClaw\n\n"
+        "```bash\n"
+        "mkdir -p ~/.openclaw/skills/unpdf\n"
+        f"curl -s https://{settings.domain}/skill > ~/.openclaw/skills/unpdf/SKILL.md\n"
+        "```\n\n"
+        "Once installed, your agent will use unpdf.it whenever it encounters a PDF URL.\n"
+        f"View the skill definition at: https://{settings.domain}/skill\n"
     )
     return _markdown_response(body)
+
+
+# Skill definition served as raw markdown for agent consumption
+_SKILL_MD = """\
+---
+name: unpdf
+description: >
+  Convert PDF URLs to markdown using unpdf.it. Use when the user shares a PDF
+  link, asks to read/summarize/analyze a PDF, or when you encounter a .pdf URL
+  that needs to be read. Converts any publicly accessible PDF to clean markdown.
+allowed-tools: WebFetch
+user-invocable: true
+argument-hint: "<pdf-url>"
+---
+
+# unpdf.it - PDF to Markdown
+
+When you encounter a PDF URL or the user asks you to read a PDF, convert it
+to markdown using unpdf.it instead of trying to download and parse it yourself.
+
+## How it works
+
+Strip the protocol (`https://` or `http://`) from the PDF URL and prepend
+`https://unpdf.it/`:
+
+| Original PDF URL | unpdf.it URL |
+|---|---|
+| `https://arxiv.org/pdf/2301.00001v1.pdf` | `https://unpdf.it/arxiv.org/pdf/2301.00001v1.pdf` |
+| `https://example.com/report.pdf` | `https://unpdf.it/example.com/report.pdf` |
+
+## Steps
+
+1. Take the PDF URL (from the user's message, a webpage, or a reference)
+2. Remove the `https://` prefix
+3. Fetch `https://unpdf.it/<host>/<path>` using WebFetch
+4. The response is clean markdown with headings, tables, and image references
+
+## Example
+
+User says: "Read https://arxiv.org/pdf/2301.00001v1.pdf"
+
+Use WebFetch with:
+- URL: `https://unpdf.it/arxiv.org/pdf/2301.00001v1.pdf`
+- Prompt: "Return the full markdown content of this document"
+
+## When to use
+
+- User shares a `.pdf` link and asks to read, summarize, or analyze it
+- You find a PDF reference while researching and need its content
+- Any publicly accessible PDF URL needs to be converted to text
+
+## Limitations
+
+- Only works with publicly accessible URLs (not local files or authenticated PDFs)
+- For local PDF files, use the built-in Read tool instead (Claude can read PDFs natively)
+"""
+
+
+@app.get("/skill")
+async def skill() -> Response:
+    """Serve the SKILL.md file for agent skill installation."""
+    return _markdown_response(_SKILL_MD)
 
 
 @app.get("/images/{cache_key}/{filename:path}")

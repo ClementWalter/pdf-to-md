@@ -60,11 +60,31 @@ class TestRootRoute:
 
     def test_root_contains_usage_heading(self, client) -> None:
         response = client.get("/")
-        assert "# pdf2md" in response.text
+        assert "# unpdf.it" in response.text
 
     def test_root_contains_domain(self, client) -> None:
         response = client.get("/")
         assert "test.pdf2md.com" in response.text
+
+
+class TestSkillRoute:
+    """GET /skill should return the SKILL.md for agent installation."""
+
+    def test_skill_returns_200(self, client) -> None:
+        response = client.get("/skill")
+        assert response.status_code == 200
+
+    def test_skill_returns_markdown_content_type(self, client) -> None:
+        response = client.get("/skill")
+        assert "text/markdown" in response.headers["content-type"]
+
+    def test_skill_contains_frontmatter(self, client) -> None:
+        response = client.get("/skill")
+        assert "name: unpdf" in response.text
+
+    def test_skill_contains_unpdf_url(self, client) -> None:
+        response = client.get("/skill")
+        assert "unpdf.it" in response.text
 
 
 class TestImageRoute:
