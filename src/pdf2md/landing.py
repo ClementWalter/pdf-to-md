@@ -55,17 +55,6 @@ def render_landing(domain: str) -> str:
     max-width: 480px;
     margin: 0 auto;
   }}
-  .counter {{
-    margin-top: 20px;
-    font-family: var(--mono);
-    font-size: 0.9rem;
-    color: var(--muted);
-  }}
-  .counter strong {{
-    color: var(--green);
-    font-size: 1.1rem;
-  }}
-
   /* Try it */
   .try-it {{
     background: var(--card);
@@ -328,7 +317,6 @@ def render_landing(domain: str) -> str:
   <div class="hero">
     <h1>un<span>pdf</span>.it</h1>
     <p>Convert any PDF to clean markdown. One URL rewrite. Built for AI agents.</p>
-    <div class="counter" id="counter"></div>
   </div>
 
   <div class="try-it">
@@ -514,15 +502,6 @@ async function convert() {{
   btn.disabled = false;
   btn.textContent = 'Convert';
 }}
-
-// Fetch and display the conversion counter
-fetch('/stats').then(r => r.json()).then(data => {{
-  const el = document.getElementById('counter');
-  const reads = data.total_reads || 0;
-  if (reads > 0) {{
-    el.innerHTML = '<strong>' + reads.toLocaleString() + '</strong> PDFs read so far';
-  }}
-}}).catch(() => {{}});
 
 function copyCode(el) {{
   navigator.clipboard.writeText(el.textContent);
