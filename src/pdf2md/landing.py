@@ -15,6 +15,7 @@ def render_landing(domain: str) -> str:
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>unpdf.it — PDF to Markdown API</title>
 <meta name="description" content="Convert any PDF to clean markdown. One URL rewrite. Free API for AI agents, developers, and LLMs.">
+<link rel="alternate" type="text/markdown" href="/llms.txt" title="LLM-friendly site info">
 <style>
   :root {{
     --bg: #0a0a0a;
@@ -439,6 +440,8 @@ other outside sources including MetaMask and OpenSea...</pre>
     <a href="https://github.com/ClementWalter/pdf-to-md">Source on GitHub</a>
     &middot;
     <a href="https://{domain}/skill">SKILL.md</a>
+    &middot;
+    <a href="https://{domain}/llms.txt">llms.txt</a>
   </footer>
 </div>
 

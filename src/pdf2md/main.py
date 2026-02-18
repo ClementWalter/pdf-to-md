@@ -144,6 +144,111 @@ async def skill() -> Response:
     return _markdown_response(_SKILL_MD)
 
 
+@app.get("/llms.txt")
+async def llms_txt() -> Response:
+    """Serve llms.txt — concise LLM-friendly site description per llmstxt.org."""
+    settings = _get_settings()
+    content = (
+        "# unpdf.it\n\n"
+        "> Convert any publicly accessible PDF to clean markdown via URL rewrite. "
+        "No API key, no upload. Built for AI agents.\n\n"
+        "## API\n\n"
+        f"Prepend `https://{settings.domain}/` to any PDF URL (without its protocol):\n\n"
+        f"- `https://arxiv.org/pdf/2301.00001v1.pdf` → `https://{settings.domain}/arxiv.org/pdf/2301.00001v1.pdf`\n\n"
+        "The response is `text/markdown` with headers `X-Page-Count`, `X-Cached`, `X-Conversion-Time-Ms`.\n\n"
+        "## Resources\n\n"
+        f"- [SKILL.md](https://{settings.domain}/skill): Agent Skills standard skill definition\n"
+        f"- [Full docs](https://{settings.domain}/llms-full.txt): Detailed API reference\n"
+        "- [Source](https://github.com/ClementWalter/pdf-to-md): GitHub repository\n\n"
+        "## Optional\n\n"
+        "- Images extracted from PDFs are served at `/images/<cache_key>/<filename>`\n"
+        "- Add `?refresh=true` to bypass cache\n"
+        "- Max PDF size: 50 MB\n"
+        "- Cache TTL: 30 days\n"
+    )
+    return _markdown_response(content)
+
+
+@app.get("/llms-full.txt")
+async def llms_full_txt() -> Response:
+    """Serve llms-full.txt — detailed LLM-friendly API reference."""
+    settings = _get_settings()
+    content = (
+        "# unpdf.it — Full Documentation\n\n"
+        "> Convert any publicly accessible PDF to clean markdown via URL rewrite. "
+        "No API key required. Free during beta.\n\n"
+        "## How to use\n\n"
+        "Take any PDF URL, strip the `https://` prefix, and prepend "
+        f"`https://{settings.domain}/`.\n\n"
+        "### Example\n\n"
+        "```\n"
+        "Input:  https://arxiv.org/pdf/2301.00001v1.pdf\n"
+        f"Output: https://{settings.domain}/arxiv.org/pdf/2301.00001v1.pdf\n"
+        "```\n\n"
+        "### Response format\n\n"
+        "- Content-Type: `text/markdown; charset=utf-8`\n"
+        "- Headers:\n"
+        "  - `X-Source-URL`: the original PDF URL\n"
+        "  - `X-Page-Count`: number of pages in the PDF\n"
+        "  - `X-Cached`: `true` if served from cache, `false` if freshly converted\n"
+        "  - `X-Conversion-Time-Ms`: conversion time in milliseconds (0 if cached)\n\n"
+        "### Endpoints\n\n"
+        f"| Method | Path | Description |\n"
+        f"|--------|------|-------------|\n"
+        f"| GET | `/` | HTML landing page |\n"
+        f"| GET | `/health` | Liveness probe, returns `ok` |\n"
+        f"| GET | `/skill` | Agent Skills SKILL.md definition |\n"
+        f"| GET | `/llms.txt` | LLM-friendly site summary |\n"
+        f"| GET | `/llms-full.txt` | This file — full API reference |\n"
+        f"| GET | `/images/<key>/<file>` | Serve extracted image from cache |\n"
+        f"| GET | `/<host>/<path>` | Convert PDF at `https://<host>/<path>` to markdown |\n\n"
+        "### Query parameters\n\n"
+        "- `?refresh=true`: bypass cache and re-convert the PDF\n"
+        "- All other query parameters are forwarded to the source PDF URL\n\n"
+        "### Error responses\n\n"
+        "Errors are returned as `text/markdown` with format:\n\n"
+        "```markdown\n"
+        "# Error\n\n"
+        "<error message>\n"
+        "```\n\n"
+        "| Status | Meaning |\n"
+        "|--------|---------|\n"
+        "| 400 | Invalid URL or corrupt PDF |\n"
+        "| 404 | PDF not found at source URL |\n"
+        "| 413 | PDF exceeds 50 MB size limit |\n"
+        "| 502 | Source server error |\n"
+        "| 504 | Conversion timed out |\n\n"
+        "### Limits\n\n"
+        "- Max PDF size: 50 MB\n"
+        "- Conversion timeout: 120 seconds\n"
+        "- Download timeout: 30 seconds\n"
+        "- Cache TTL: 30 days\n"
+        "- No authentication required\n"
+        "- No rate limit (fair use)\n\n"
+        "### Install as agent skill\n\n"
+        f"The SKILL.md at `https://{settings.domain}/skill` follows the "
+        "[Agent Skills](https://agentskills.io) open standard. Install it with:\n\n"
+        "```bash\n"
+        "# Claude Code\n"
+        f"mkdir -p ~/.claude/skills/unpdf && curl -s https://{settings.domain}/skill > ~/.claude/skills/unpdf/SKILL.md\n\n"
+        "# Cursor\n"
+        f"mkdir -p .cursor/skills/unpdf && curl -s https://{settings.domain}/skill > .cursor/skills/unpdf/SKILL.md\n\n"
+        "# Windsurf\n"
+        f"mkdir -p .windsurf/skills/unpdf && curl -s https://{settings.domain}/skill > .windsurf/skills/unpdf/SKILL.md\n\n"
+        "# GitHub Copilot\n"
+        f"mkdir -p .github/skills/unpdf && curl -s https://{settings.domain}/skill > .github/skills/unpdf/SKILL.md\n"
+        "```\n\n"
+        "### Tech stack\n\n"
+        "- [pymupdf4llm](https://github.com/pymupdf/RAG): rule-based PDF to markdown (no ML models)\n"
+        "- [FastAPI](https://fastapi.tiangolo.com/): async web framework\n"
+        "- [httpx](https://www.python-httpx.org/): async HTTP client for PDF downloads\n"
+        "- [Scaleway Serverless Containers](https://www.scaleway.com/en/serverless-containers/): scale-to-zero deployment\n\n"
+        "### Source\n\n"
+        "- GitHub: https://github.com/ClementWalter/pdf-to-md\n"
+    )
+    return _markdown_response(content)
+
+
 @app.get("/images/{cache_key}/{filename:path}")
 async def serve_image(cache_key: str, filename: str) -> Response:
     """Serve a previously extracted image from the cache."""

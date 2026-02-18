@@ -87,6 +87,34 @@ class TestSkillRoute:
         assert "unpdf.it" in response.text
 
 
+class TestLlmsTxt:
+    """GET /llms.txt and /llms-full.txt should return LLM-friendly site info."""
+
+    def test_llms_txt_returns_200(self, client) -> None:
+        response = client.get("/llms.txt")
+        assert response.status_code == 200
+
+    def test_llms_txt_returns_markdown(self, client) -> None:
+        response = client.get("/llms.txt")
+        assert "text/markdown" in response.headers["content-type"]
+
+    def test_llms_txt_contains_h1_heading(self, client) -> None:
+        response = client.get("/llms.txt")
+        assert "# unpdf.it" in response.text
+
+    def test_llms_txt_contains_domain(self, client) -> None:
+        response = client.get("/llms.txt")
+        assert "test.pdf2md.com" in response.text
+
+    def test_llms_full_txt_returns_200(self, client) -> None:
+        response = client.get("/llms-full.txt")
+        assert response.status_code == 200
+
+    def test_llms_full_txt_contains_endpoints_table(self, client) -> None:
+        response = client.get("/llms-full.txt")
+        assert "| GET |" in response.text
+
+
 class TestImageRoute:
     """GET /images/<hash>/<filename> should serve cached images."""
 
