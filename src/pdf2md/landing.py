@@ -518,8 +518,9 @@ async function convert() {{
 // Fetch and display the conversion counter
 fetch('/stats').then(r => r.json()).then(data => {{
   const el = document.getElementById('counter');
-  if (data.total_conversions > 0) {{
-    el.innerHTML = '<strong>' + data.total_conversions.toLocaleString() + '</strong> PDFs converted';
+  const reads = data.total_reads || 0;
+  if (reads > 0) {{
+    el.innerHTML = '<strong>' + reads.toLocaleString() + '</strong> PDFs read so far';
   }}
 }}).catch(() => {{}});
 

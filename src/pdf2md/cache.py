@@ -136,12 +136,12 @@ class DiskCache:
         return path if path.exists() else None
 
     def stats(self) -> dict:
-        """Return usage statistics: total conversions and current cache size."""
+        """Return usage statistics: total reads and current cache size."""
         stats_path = self._cache_dir / "_stats.json"
-        total = 0
+        data = {}
         if stats_path.exists():
             try:
-                total = json.loads(stats_path.read_text()).get("total_conversions", 0)
+                data = json.loads(stats_path.read_text())
             except (json.JSONDecodeError, OSError):
                 pass
 
@@ -152,19 +152,31 @@ class DiskCache:
             if d.is_dir() and (d / "meta.json").exists()
         )
 
-        return {"total_conversions": total, "cached_pdfs": cached}
+        return {
+            "total_conversions": data.get("total_conversions", 0),
+            "total_reads": data.get("total_reads", 0),
+            "cached_pdfs": cached,
+        }
+
+    def record_read(self) -> None:
+        """Increment the total reads counter — called on every successful PDF response."""
+        self._update_stat("total_reads")
 
     def _increment_counter(self) -> None:
-        """Atomically increment the total conversions counter on disk."""
+        """Increment the total conversions counter — called on fresh conversions only."""
+        self._update_stat("total_conversions")
+
+    def _update_stat(self, key: str) -> None:
+        """Atomically increment a named counter in the stats file."""
         stats_path = self._cache_dir / "_stats.json"
-        total = 0
+        data = {}
         if stats_path.exists():
             try:
-                total = json.loads(stats_path.read_text()).get("total_conversions", 0)
+                data = json.loads(stats_path.read_text())
             except (json.JSONDecodeError, OSError):
                 pass
-        total += 1
-        stats_path.write_text(json.dumps({"total_conversions": total}))
+        data[key] = data.get(key, 0) + 1
+        stats_path.write_text(json.dumps(data))
 
     def _evict(self, cache_key: str) -> None:
         """Remove a cache entry from disk."""

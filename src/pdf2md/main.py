@@ -313,6 +313,7 @@ async def convert(full_path: str, request: Request) -> Response:
         entry = cache.get(source_url)
         if entry is not None:
             logger.info("Cache hit for %s", source_url)
+            cache.record_read()
             return _markdown_response(
                 entry.markdown,
                 headers={
@@ -334,6 +335,7 @@ async def convert(full_path: str, request: Request) -> Response:
         if not refresh:
             entry = cache.get(source_url)
             if entry is not None:
+                cache.record_read()
                 return _markdown_response(
                     entry.markdown,
                     headers={
@@ -397,6 +399,7 @@ async def convert(full_path: str, request: Request) -> Response:
     if not lock.locked():
         _conversion_locks.pop(cache_key, None)
 
+    cache.record_read()
     return _markdown_response(
         markdown,
         headers={

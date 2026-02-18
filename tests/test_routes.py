@@ -102,6 +102,10 @@ class TestStatsRoute:
         data = client.get("/stats").json()
         assert "total_conversions" in data
 
+    def test_stats_contains_total_reads(self, client) -> None:
+        data = client.get("/stats").json()
+        assert "total_reads" in data
+
     def test_stats_contains_cached_pdfs(self, client) -> None:
         data = client.get("/stats").json()
         assert "cached_pdfs" in data
@@ -347,3 +351,23 @@ class TestCacheHit:
         client.get("/example.com/doc.pdf")
         response = client.get("/example.com/doc.pdf")
         assert response.headers["x-conversion-time-ms"] == "0"
+
+    @patch("pdf2md.main.convert_pdf")
+    @patch("pdf2md.main.download_pdf")
+    def test_cache_hit_increments_total_reads(self, mock_download, mock_convert, client) -> None:
+        mock_download.return_value = DownloadResult(
+            content=b"%PDF-fake",
+            content_type="application/pdf",
+            source_url="https://example.com/doc.pdf",
+        )
+        mock_convert.return_value = ConversionResult(
+            markdown="# Doc",
+            images={},
+            page_count=1,
+        )
+        # First request — fresh conversion (1 read)
+        client.get("/example.com/doc.pdf")
+        # Second request — cache hit (2 reads)
+        client.get("/example.com/doc.pdf")
+        data = client.get("/stats").json()
+        assert data["total_reads"] == 2

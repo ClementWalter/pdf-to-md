@@ -121,14 +121,17 @@ class TestDiskCacheImagePath:
 class TestDiskCacheStats:
     """Verify usage statistics tracking."""
 
-    def test_stats_starts_at_zero(self, cache) -> None:
+    def test_stats_starts_at_zero_conversions(self, cache) -> None:
         assert cache.stats()["total_conversions"] == 0
 
-    def test_stats_increments_on_put(self, cache) -> None:
+    def test_stats_starts_at_zero_reads(self, cache) -> None:
+        assert cache.stats()["total_reads"] == 0
+
+    def test_stats_conversions_increments_on_put(self, cache) -> None:
         cache.put("https://example.com/a.pdf", "# A", {}, page_count=1)
         assert cache.stats()["total_conversions"] == 1
 
-    def test_stats_increments_multiple_times(self, cache) -> None:
+    def test_stats_conversions_increments_multiple_times(self, cache) -> None:
         cache.put("https://example.com/a.pdf", "# A", {}, page_count=1)
         cache.put("https://example.com/b.pdf", "# B", {}, page_count=2)
         assert cache.stats()["total_conversions"] == 2
@@ -137,3 +140,23 @@ class TestDiskCacheStats:
         cache.put("https://example.com/a.pdf", "# A", {}, page_count=1)
         cache.put("https://example.com/b.pdf", "# B", {}, page_count=1)
         assert cache.stats()["cached_pdfs"] == 2
+
+    def test_record_read_increments_total_reads(self, cache) -> None:
+        cache.record_read()
+        assert cache.stats()["total_reads"] == 1
+
+    def test_record_read_increments_multiple_times(self, cache) -> None:
+        cache.record_read()
+        cache.record_read()
+        cache.record_read()
+        assert cache.stats()["total_reads"] == 3
+
+    def test_record_read_independent_of_conversions(self, cache) -> None:
+        cache.put("https://example.com/a.pdf", "# A", {}, page_count=1)
+        cache.record_read()
+        cache.record_read()
+        assert cache.stats()["total_conversions"] == 1
+
+    def test_put_does_not_increment_reads(self, cache) -> None:
+        cache.put("https://example.com/a.pdf", "# A", {}, page_count=1)
+        assert cache.stats()["total_reads"] == 0
