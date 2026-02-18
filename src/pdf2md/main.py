@@ -13,7 +13,7 @@ import time
 from functools import lru_cache
 
 from fastapi import FastAPI, Request, Response
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse
 
 from pdf2md.cache import DiskCache, url_to_cache_key
 from pdf2md.config import Settings
@@ -23,6 +23,7 @@ from pdf2md.downloader import (
     download_pdf,
     normalize_url,
 )
+from pdf2md.landing import render_landing
 
 logger = logging.getLogger(__name__)
 
@@ -75,35 +76,10 @@ async def health() -> PlainTextResponse:
 
 
 @app.get("/")
-async def root() -> Response:
-    """Return usage instructions as text/markdown."""
+async def root() -> HTMLResponse:
+    """Return the HTML landing page."""
     settings = _get_settings()
-    body = (
-        "# unpdf.it\n\n"
-        "Convert any PDF to markdown by prepending this domain to the PDF URL.\n\n"
-        "## Usage\n\n"
-        "Given a PDF at:\n"
-        "  https://arxiv.org/pdf/2301.00001v1.pdf\n\n"
-        "Get its markdown at:\n"
-        f"  https://{settings.domain}/arxiv.org/pdf/2301.00001v1.pdf\n\n"
-        "Images are extracted and available at their referenced URLs within the markdown.\n\n"
-        "## Add as an AI Agent Skill\n\n"
-        "unpdf.it follows the [Agent Skills](https://agentskills.io) open standard.\n"
-        "Install it so your AI coding agent automatically converts PDFs to markdown.\n\n"
-        "### Claude Code\n\n"
-        "```bash\n"
-        "mkdir -p ~/.claude/skills/unpdf\n"
-        f"curl -s https://{settings.domain}/skill > ~/.claude/skills/unpdf/SKILL.md\n"
-        "```\n\n"
-        "### OpenClaw\n\n"
-        "```bash\n"
-        "mkdir -p ~/.openclaw/skills/unpdf\n"
-        f"curl -s https://{settings.domain}/skill > ~/.openclaw/skills/unpdf/SKILL.md\n"
-        "```\n\n"
-        "Once installed, your agent will use unpdf.it whenever it encounters a PDF URL.\n"
-        f"View the skill definition at: https://{settings.domain}/skill\n"
-    )
-    return _markdown_response(body)
+    return HTMLResponse(render_landing(settings.domain))
 
 
 # Skill definition served as raw markdown for agent consumption

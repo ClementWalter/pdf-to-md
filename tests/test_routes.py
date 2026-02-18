@@ -48,19 +48,19 @@ def client(tmp_cache, monkeypatch):
 
 
 class TestRootRoute:
-    """GET / should return usage instructions as text/markdown."""
+    """GET / should return the HTML landing page."""
 
     def test_root_returns_200(self, client) -> None:
         response = client.get("/")
         assert response.status_code == 200
 
-    def test_root_returns_markdown_content_type(self, client) -> None:
+    def test_root_returns_html_content_type(self, client) -> None:
         response = client.get("/")
-        assert "text/markdown" in response.headers["content-type"]
+        assert "text/html" in response.headers["content-type"]
 
-    def test_root_contains_usage_heading(self, client) -> None:
+    def test_root_contains_title(self, client) -> None:
         response = client.get("/")
-        assert "# unpdf.it" in response.text
+        assert "unpdf.it" in response.text
 
     def test_root_contains_domain(self, client) -> None:
         response = client.get("/")
