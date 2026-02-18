@@ -388,6 +388,21 @@ other outside sources including MetaMask and OpenSea...</pre>
   </section>
 
   <section>
+    <h2>The Story</h2>
+    <div class="prose">
+      <p>I asked my agent to read a research paper. It couldn't &mdash; the PDF was invisible to it.</p>
+      <p>I asked around. No good solution. Existing tools required uploads, API keys, or multi-step workflows.
+      Nothing an agent could just <em>use</em>.</p>
+      <p>So I did what any reasonable human would do: I asked my agent to fix it.</p>
+      <p>Using <a href="https://github.com/enitrat/skill-issue/tree/main/plugins/personal-skills/skills/smithers" style="color:var(--accent)">smithers.sh</a>
+      to scaffold the workflow and <a href="https://github.com/ClementWalter/claudine/tree/main/.claude/skills/scaleway-dev" style="color:var(--accent)">scaleway-dev</a>
+      to deploy it, my agent built unpdf.it in an afternoon.</p>
+      <p>Now it exists for every agent.</p>
+      <p><strong>By an agent. For agents.</strong></p>
+    </div>
+  </section>
+
+  <section>
     <h2>Add to your AI agent</h2>
     <p style="color: var(--muted); margin-bottom: 16px;">
       unpdf.it follows the <a href="https://agentskills.io" style="color: var(--accent); text-decoration: none;">Agent Skills</a> open standard.
