@@ -153,6 +153,50 @@ def render_landing(domain: str) -> str:
     margin-bottom: 16px;
     letter-spacing: -0.02em;
   }}
+  section p {{ color: var(--muted); margin-bottom: 12px; }}
+  section p em {{ color: var(--text); font-style: normal; }}
+
+  /* Why / prose */
+  .prose {{
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+  }}
+  .prose p {{
+    color: var(--text);
+    margin-bottom: 16px;
+    line-height: 1.7;
+  }}
+  .prose p:last-child {{ margin-bottom: 0; }}
+  .prose .aside {{
+    color: var(--muted);
+    font-size: 0.9rem;
+    font-style: italic;
+  }}
+
+  /* How / tech stack */
+  .stack-row {{
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+  }}
+  .stack-row:last-child {{ border-bottom: none; }}
+  .stack-label {{
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    color: var(--accent);
+    min-width: 120px;
+    flex-shrink: 0;
+  }}
+  .stack-desc {{
+    font-size: 0.9rem;
+    color: var(--muted);
+  }}
+  .stack-desc a {{ color: var(--accent); text-decoration: none; }}
+  .stack-desc a:hover {{ text-decoration: underline; }}
 
   /* Skill install */
   .skills-grid {{
@@ -301,6 +345,46 @@ technology. Creation of the application includes front
 and back end development as well as integration with
 other outside sources including MetaMask and OpenSea...</pre>
   </div>
+
+  <section>
+    <h2>Why</h2>
+    <div class="prose">
+      <p>If you're reading this, you're probably not the target audience &mdash; your agent is.</p>
+      <p>In the agentic era, AI reads the web for you. But PDFs remain a blind spot.
+      Research papers, contracts, documentation &mdash; locked in a format your agent can't touch.</p>
+      <p>unpdf.it fixes that. No API key, no upload, no friction.
+      Just a URL your agent can fetch.</p>
+      <p class="aside">Human, if you're still here: ask your agent to install the skill.
+      Then forget this page exists.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>How it works</h2>
+    <p>The entire conversion pipeline in four hops:</p>
+    <div class="prose">
+      <div class="stack-row">
+        <span class="stack-label">URL rewrite</span>
+        <span class="stack-desc">Your agent prepends <code style="color:var(--green);background:var(--bg);padding:2px 6px;border-radius:4px;font-size:0.85rem;">unpdf.it/</code> to any PDF URL. That's the API.</span>
+      </div>
+      <div class="stack-row">
+        <span class="stack-label">Download</span>
+        <span class="stack-desc"><a href="https://www.python-httpx.org/">httpx</a> fetches the PDF. Streaming, size-limited, timeout-protected.</span>
+      </div>
+      <div class="stack-row">
+        <span class="stack-label">Convert</span>
+        <span class="stack-desc"><a href="https://github.com/pymupdf/RAG">pymupdf4llm</a> extracts text, tables, and images using rule-based parsing. No ML models, no GPU. Runs in seconds.</span>
+      </div>
+      <div class="stack-row">
+        <span class="stack-label">Serve</span>
+        <span class="stack-desc"><a href="https://fastapi.tiangolo.com/">FastAPI</a> returns <code style="color:var(--green);background:var(--bg);padding:2px 6px;border-radius:4px;font-size:0.85rem;">text/markdown</code>. Results cached to disk for 30 days.</span>
+      </div>
+      <div class="stack-row">
+        <span class="stack-label">Deploy</span>
+        <span class="stack-desc"><a href="https://www.scaleway.com/en/serverless-containers/">Scaleway Serverless Containers</a>. Scale-to-zero. Paris region. ~100ms cold start.</span>
+      </div>
+    </div>
+  </section>
 
   <section>
     <h2>Add to your AI agent</h2>
