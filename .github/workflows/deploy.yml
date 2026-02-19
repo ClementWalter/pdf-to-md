@@ -55,9 +55,11 @@ jobs:
           IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
 
           echo "Updating container ${{ env.CONTAINER_ID }} with image $IMAGE..."
+          # 4096 MB needed because pymupdf4llm peaks at ~2 GB for large PDFs
           scw container container update \
             "${{ env.CONTAINER_ID }}" \
             registry-image="$IMAGE" \
+            memory-limit=4096 \
             environment-variables.PDF2MD_DOMAIN="unpdf.it" \
             environment-variables.PDF2MD_CACHE_DIR=/app/cache \
             environment-variables.PDF2MD_MAX_PDF_SIZE_MB=50 \
