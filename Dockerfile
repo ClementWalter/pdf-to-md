@@ -9,6 +9,9 @@ WORKDIR /app
 # Install uv for fast dependency resolution
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
+# Cache-busting arg: changes each commit so COPY + install always re-run
+ARG CACHE_BUST=unknown
+
 # Copy full project (pyproject.toml + source) to build the package
 COPY pyproject.toml ./
 COPY src/ src/

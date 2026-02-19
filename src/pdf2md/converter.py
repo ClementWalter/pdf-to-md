@@ -192,13 +192,18 @@ def _run_hybrid(
         # Fallback: no page chunks available, return as-is
         return result
 
-    # Run formula OCR + patching
-    patched_markdown = _run_formula_ocr(
-        pdf_path,
-        page_markdowns,
-        openrouter_api_key=openrouter_api_key,
-        ocr_model=ocr_model,
-    )
+    # Run formula OCR + patching; fall back to plain pymupdf4llm on any error
+    # so a formula-OCR failure never takes down the whole conversion
+    try:
+        patched_markdown = _run_formula_ocr(
+            pdf_path,
+            page_markdowns,
+            openrouter_api_key=openrouter_api_key,
+            ocr_model=ocr_model,
+        )
+    except Exception:
+        logger.exception("Formula OCR failed — falling back to plain pymupdf4llm")
+        return result
 
     # Re-apply image path normalization on the patched markdown
     image_dir = Path("/tmp/pymupdf_images")
