@@ -60,7 +60,8 @@ jobs:
             environment-variables.PDF2MD_MAX_PDF_SIZE_MB=50 \
             environment-variables.PDF2MD_CACHE_TTL_DAYS=30 \
             environment-variables.PDF2MD_DOWNLOAD_TIMEOUT=30 \
-            environment-variables.PDF2MD_CONVERSION_TIMEOUT=120 \
+            environment-variables.PDF2MD_CONVERSION_TIMEOUT=300 \
+            environment-variables.PDF2MD_OPENROUTER_API_KEY="${{ secrets.OPENROUTER_API_KEY }}" \
             -o json
 
           echo "Deploying..."

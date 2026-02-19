@@ -131,6 +131,13 @@ Use WebFetch with:
 - You find a PDF reference while researching and need its content
 - Any publicly accessible PDF URL needs to be converted to text
 
+## Important notes
+
+- Math-heavy PDFs (papers with LaTeX formulas) take longer because each formula
+  is individually OCR'd. This can take up to 1-2 minutes for large documents.
+  Wait for the full response — do not retry or time out early.
+- First conversion is slow; subsequent requests are served from cache instantly.
+
 ## Limitations
 
 - Only works with publicly accessible URLs (not local files or authenticated PDFs)
@@ -220,7 +227,7 @@ async def llms_full_txt() -> Response:
         "| 504 | Conversion timed out |\n\n"
         "### Limits\n\n"
         "- Max PDF size: 50 MB\n"
-        "- Conversion timeout: 120 seconds\n"
+        "- Conversion timeout: 300 seconds (math-heavy PDFs with formula OCR may take longer)\n"
         "- Download timeout: 30 seconds\n"
         "- Cache TTL: 30 days\n"
         "- No authentication required\n"
@@ -366,6 +373,8 @@ async def convert(full_path: str, request: Request) -> Response:
                 download_result.content,
                 timeout=settings.conversion_timeout,
                 cache_key=cache_key,
+                openrouter_api_key=settings.openrouter_api_key,
+                ocr_model=settings.ocr_model,
             )
         except ConversionTimeoutError as exc:
             return _markdown_response(

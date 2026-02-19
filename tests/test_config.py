@@ -30,7 +30,7 @@ class TestSettingsDefaults:
 
     def test_default_conversion_timeout(self) -> None:
         settings = Settings()
-        assert settings.conversion_timeout == 120
+        assert settings.conversion_timeout == 300
 
 
 class TestSettingsFromEnv:

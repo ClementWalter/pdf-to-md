@@ -1,11 +1,12 @@
-"""PDF-to-Markdown conversion using pymupdf4llm.
+"""PDF-to-Markdown conversion using pymupdf4llm with optional formula OCR.
 
 Uses PyMuPDF's rule-based extraction (no ML models, no GPU needed) which runs
-in seconds with minimal memory — suitable for serverless containers.
+in seconds with minimal memory — suitable for serverless containers.  When an
+OpenRouter API key is provided, a hybrid pipeline detects math formulas via font
+analysis, OCRs them with a vision model, and patches LaTeX back into the output.
 """
 
 import asyncio
-import io
 import logging
 import tempfile
 from dataclasses import dataclass, field
@@ -38,10 +39,12 @@ class ConversionResult:
     page_count: int = 0
 
 
-def _run_pymupdf(pdf_path: str) -> ConversionResult:
+def _run_pymupdf(pdf_path: str, *, page_chunks: bool = False) -> ConversionResult:
     """Synchronous pymupdf4llm invocation — runs in a thread via asyncio.
 
-    Separated so it can be easily mocked in tests.
+    When *page_chunks* is True, returns per-page markdown joined by newline
+    (and stores the individual page list in ``_page_markdowns`` for the formula
+    OCR pipeline).  Separated so it can be easily mocked in tests.
     """
     try:
         import pymupdf4llm
@@ -56,12 +59,23 @@ def _run_pymupdf(pdf_path: str) -> ConversionResult:
         page_count = len(doc)
         doc.close()
 
-        # write_images=True extracts images and references them in markdown
-        markdown = pymupdf4llm.to_markdown(
-            pdf_path,
-            write_images=True,
-            image_path="/tmp/pymupdf_images",
-        )
+        if page_chunks:
+            # Per-page chunks for easier formula-region matching
+            chunks = pymupdf4llm.to_markdown(
+                pdf_path,
+                write_images=True,
+                image_path="/tmp/pymupdf_images",
+                page_chunks=True,
+            )
+            page_markdowns = [chunk["text"] for chunk in chunks]
+            markdown = "\n".join(page_markdowns)
+        else:
+            markdown = pymupdf4llm.to_markdown(
+                pdf_path,
+                write_images=True,
+                image_path="/tmp/pymupdf_images",
+            )
+            page_markdowns = []
     except Exception as exc:
         logger.exception("pymupdf4llm failed to convert %s", pdf_path)
         raise ConversionError("Could not parse PDF.") from exc
@@ -84,20 +98,138 @@ def _run_pymupdf(pdf_path: str) -> ConversionResult:
         for img_file in image_dir.iterdir():
             img_file.unlink(missing_ok=True)
 
-    return ConversionResult(
+    result = ConversionResult(
         markdown=markdown,
         images=images,
         page_count=page_count,
+    )
+    # Attach per-page markdowns for the formula OCR pipeline (not part of
+    # the public dataclass contract, but needed internally)
+    result._page_markdowns = page_markdowns  # type: ignore[attr-defined]
+    return result
+
+
+def _run_formula_ocr(
+    pdf_path: str,
+    page_markdowns: list[str],
+    *,
+    openrouter_api_key: str,
+    ocr_model: str,
+) -> str:
+    """Detect formula regions, OCR them, and patch LaTeX into the markdown.
+
+    Runs synchronously — called from a thread pool alongside _run_pymupdf.
+    """
+    import pymupdf
+
+    from pdf2md.formula_ocr import (
+        detect_formula_regions,
+        ocr_formulas,
+        patch_markdown,
+        RENDER_DPI,
+    )
+
+    doc = pymupdf.open(pdf_path)
+    all_regions = []
+
+    # Step 1: Detect formula regions via font analysis
+    for page_num in range(len(doc)):
+        page = doc[page_num]
+        regions = detect_formula_regions(page)
+        all_regions.extend(regions)
+
+    if not all_regions:
+        logger.info("No formula regions detected — skipping OCR")
+        doc.close()
+        return "\n".join(page_markdowns)
+
+    logger.info(
+        "Detected %d formula regions across %d pages",
+        len(all_regions),
+        len({r.page_num for r in all_regions}),
+    )
+
+    # Step 2: Render pages with formulas at high DPI for cropping
+    pages_with_formulas = {r.page_num for r in all_regions}
+    zoom = RENDER_DPI / 72.0
+    matrix = pymupdf.Matrix(zoom, zoom)
+    page_images: dict[int, bytes] = {}
+
+    for page_num in pages_with_formulas:
+        page = doc[page_num]
+        pix = page.get_pixmap(matrix=matrix)
+        page_images[page_num] = pix.tobytes("png")
+
+    doc.close()
+
+    # Step 3: OCR formulas via OpenRouter
+    all_regions = ocr_formulas(
+        all_regions,
+        page_images,
+        model=ocr_model,
+        api_key=openrouter_api_key,
+    )
+
+    # Step 4: Patch markdown with LaTeX
+    return patch_markdown(page_markdowns, all_regions)
+
+
+def _run_hybrid(
+    pdf_path: str,
+    *,
+    openrouter_api_key: str,
+    ocr_model: str,
+) -> ConversionResult:
+    """Full hybrid pipeline: pymupdf4llm text + OpenRouter formula OCR.
+
+    Runs synchronously in a thread pool via asyncio.to_thread().
+    """
+    # First get per-page markdown from pymupdf4llm
+    result = _run_pymupdf(pdf_path, page_chunks=True)
+    page_markdowns = result._page_markdowns  # type: ignore[attr-defined]
+
+    if not page_markdowns:
+        # Fallback: no page chunks available, return as-is
+        return result
+
+    # Run formula OCR + patching
+    patched_markdown = _run_formula_ocr(
+        pdf_path,
+        page_markdowns,
+        openrouter_api_key=openrouter_api_key,
+        ocr_model=ocr_model,
+    )
+
+    # Re-apply image path normalization on the patched markdown
+    image_dir = Path("/tmp/pymupdf_images")
+    for image_name in result.images:
+        patched_markdown = patched_markdown.replace(
+            str(image_dir / image_name), image_name
+        )
+        patched_markdown = patched_markdown.replace(
+            f"/tmp/pymupdf_images/{image_name}", image_name
+        )
+
+    return ConversionResult(
+        markdown=patched_markdown,
+        images=result.images,
+        page_count=result.page_count,
     )
 
 
 async def convert_pdf(
     pdf_content: bytes,
     *,
-    timeout: int = 120,
+    timeout: int = 300,
     cache_key: str = "",
+    openrouter_api_key: str = "",
+    ocr_model: str = "google/gemini-2.5-flash",
 ) -> ConversionResult:
     """Convert raw PDF bytes to markdown using pymupdf4llm.
+
+    When *openrouter_api_key* is set, runs the hybrid pipeline that detects
+    math formulas via font analysis and OCRs them with a vision model.
+    Falls back to plain pymupdf4llm when no API key is provided.
 
     Runs the conversion in a thread pool to avoid blocking the async event loop.
     Enforces a timeout to prevent runaway conversions.
@@ -108,10 +240,21 @@ async def convert_pdf(
         tmp_path = tmp.name
 
     try:
-        result = await asyncio.wait_for(
-            asyncio.to_thread(_run_pymupdf, tmp_path),
-            timeout=timeout,
-        )
+        if openrouter_api_key:
+            result = await asyncio.wait_for(
+                asyncio.to_thread(
+                    _run_hybrid,
+                    tmp_path,
+                    openrouter_api_key=openrouter_api_key,
+                    ocr_model=ocr_model,
+                ),
+                timeout=timeout,
+            )
+        else:
+            result = await asyncio.wait_for(
+                asyncio.to_thread(_run_pymupdf, tmp_path),
+                timeout=timeout,
+            )
     except asyncio.TimeoutError as exc:
         raise ConversionTimeoutError() from exc
     finally:

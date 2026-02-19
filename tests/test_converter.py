@@ -1,7 +1,7 @@
 """Tests for pdf2md.converter — pymupdf4llm wrapper and conversion logic."""
 
 import asyncio
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 import pytest
 
@@ -70,3 +70,49 @@ class TestRunPymupdfWithoutDependency:
         with patch("builtins.__import__", side_effect=ImportError("No module")):
             with pytest.raises(ConversionError, match="pymupdf4llm is not installed"):
                 _run_pymupdf("/tmp/fake.pdf")
+
+
+class TestConvertPdfFallbackWithoutApiKey:
+    """Without an API key, convert_pdf uses plain pymupdf4llm (no OCR)."""
+
+    @pytest.mark.asyncio
+    async def test_no_api_key_skips_formula_ocr(self) -> None:
+        mock_result = ConversionResult(markdown="plain text", images={}, page_count=1)
+        with patch("pdf2md.converter._run_pymupdf", return_value=mock_result) as mock_pymupdf:
+            result = await convert_pdf(b"%PDF-fake", timeout=10, openrouter_api_key="")
+            # Should call _run_pymupdf directly (not _run_hybrid)
+            mock_pymupdf.assert_called_once()
+            assert result.markdown == "plain text"
+
+
+class TestConvertPdfWithApiKey:
+    """With an API key, convert_pdf runs the hybrid pipeline."""
+
+    @pytest.mark.asyncio
+    async def test_api_key_triggers_hybrid_pipeline(self) -> None:
+        mock_result = ConversionResult(
+            markdown="patched $$x^2$$ text", images={}, page_count=2
+        )
+        with patch("pdf2md.converter._run_hybrid", return_value=mock_result) as mock_hybrid:
+            result = await convert_pdf(
+                b"%PDF-fake",
+                timeout=10,
+                openrouter_api_key="sk-or-test-key",
+                ocr_model="google/gemini-2.5-flash",
+            )
+            mock_hybrid.assert_called_once()
+            assert "$$x^2$$" in result.markdown
+
+    @pytest.mark.asyncio
+    async def test_hybrid_receives_correct_model(self) -> None:
+        mock_result = ConversionResult(markdown="ok", images={}, page_count=1)
+        with patch("pdf2md.converter._run_hybrid", return_value=mock_result) as mock_hybrid:
+            await convert_pdf(
+                b"%PDF-fake",
+                timeout=10,
+                openrouter_api_key="sk-or-test",
+                ocr_model="openai/gpt-4o-mini",
+            )
+            # Verify the model parameter was passed through
+            call_kwargs = mock_hybrid.call_args
+            assert call_kwargs.kwargs["ocr_model"] == "openai/gpt-4o-mini"

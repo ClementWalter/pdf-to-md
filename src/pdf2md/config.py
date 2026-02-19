@@ -28,8 +28,14 @@ class Settings(BaseSettings):
     # Timeout in seconds for downloading source PDFs
     download_timeout: int = 30
 
-    # Timeout in seconds for Marker conversion
-    conversion_timeout: int = 120
+    # Timeout in seconds for PDF conversion (bumped for math-heavy docs with OCR)
+    conversion_timeout: int = 300
+
+    # OpenRouter API key for formula OCR (empty = skip formula OCR)
+    openrouter_api_key: str = ""
+
+    # Vision model for formula OCR via OpenRouter
+    ocr_model: str = "google/gemini-2.5-flash"
 
     @property
     def max_pdf_size_bytes(self) -> int:
