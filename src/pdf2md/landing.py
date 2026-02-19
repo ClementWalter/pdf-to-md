@@ -373,7 +373,11 @@ other outside sources including MetaMask and OpenSea...</pre>
       </div>
       <div class="stack-row">
         <span class="stack-label">Convert</span>
-        <span class="stack-desc"><a href="https://github.com/pymupdf/RAG">pymupdf4llm</a> extracts text, tables, and images using rule-based parsing. No ML models, no GPU. Runs in seconds.</span>
+        <span class="stack-desc"><a href="https://github.com/pymupdf/RAG">pymupdf4llm</a> extracts text, tables, and images using rule-based parsing. No ML models, no GPU.</span>
+      </div>
+      <div class="stack-row">
+        <span class="stack-label">Formula OCR</span>
+        <span class="stack-desc">Math formulas detected via font analysis (Computer Modern / AMS), cropped at 300 DPI, and OCR'd in batches through <a href="https://openrouter.ai/">OpenRouter</a> vision API. LaTeX is patched back into the markdown.</span>
       </div>
       <div class="stack-row">
         <span class="stack-label">Serve</span>
