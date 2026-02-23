@@ -1,9 +1,12 @@
-"""PDF-to-Markdown conversion using pymupdf4llm with optional formula OCR.
+"""Document-to-Markdown conversion using pymupdf4llm (PDF) and MarkItDown (other formats).
 
-Uses PyMuPDF's rule-based extraction (no ML models, no GPU needed) which runs
+PDFs use PyMuPDF's rule-based extraction (no ML models, no GPU needed) which runs
 in seconds with minimal memory — suitable for serverless containers.  When an
 OpenRouter API key is provided, a hybrid pipeline detects math formulas via font
 analysis, OCRs them with a vision model, and patches LaTeX back into the output.
+
+Non-PDF files (DOCX, PPTX, XLSX, HTML, CSV, etc.) are routed through Microsoft's
+MarkItDown library which handles 20+ file types with decent quality.
 """
 
 import asyncio
@@ -11,6 +14,13 @@ import logging
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
+from urllib.parse import urlparse
+
+try:
+    from markitdown import MarkItDown
+except ImportError:
+    # Optional dependency — error raised at call time if missing
+    MarkItDown = None  # type: ignore[assignment, misc]
 
 logger = logging.getLogger(__name__)
 
@@ -265,5 +275,99 @@ async def convert_pdf(
     finally:
         # Clean up the temp file
         Path(tmp_path).unlink(missing_ok=True)
+
+    return result
+
+
+# Supported file extensions for MarkItDown routing
+MARKITDOWN_EXTENSIONS: set[str] = {
+    ".docx", ".pptx", ".xlsx", ".xls",
+    ".html", ".htm",
+    ".csv", ".json", ".xml",
+    ".epub",
+}
+
+
+def _run_markitdown(file_content: bytes, suffix: str) -> ConversionResult:
+    """Convert non-PDF file bytes to markdown via MarkItDown.
+
+    Writes content to a temp file with the correct extension because
+    MarkItDown infers file type from the extension.  Runs synchronously —
+    called from a thread pool via asyncio.to_thread().
+    """
+    if MarkItDown is None:
+        raise ConversionError(
+            "markitdown is not installed. Install with: pip install markitdown"
+        )
+
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        tmp.write(file_content)
+        tmp_path = tmp.name
+
+    try:
+        md = MarkItDown()
+        result = md.convert(tmp_path)
+    except Exception as exc:
+        logger.exception("MarkItDown failed to convert %s file", suffix)
+        raise ConversionError(f"Could not convert {suffix} file.") from exc
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
+
+    return ConversionResult(
+        markdown=result.text_content,
+        # MarkItDown doesn't extract images
+        images={},
+        # Page count is not meaningful for non-PDF types
+        page_count=0,
+    )
+
+
+def _get_extension_from_url(url: str) -> str:
+    """Extract the file extension from a URL path, ignoring query parameters."""
+    path = urlparse(url).path
+    # Get the extension from the last path component
+    _, ext = path.rsplit(".", 1) if "." in path else (path, "")
+    return f".{ext.lower()}" if ext else ""
+
+
+async def convert_file(
+    file_content: bytes,
+    *,
+    source_url: str,
+    timeout: int = 300,
+    cache_key: str = "",
+    openrouter_api_key: str = "",
+    ocr_model: str = "google/gemini-2.5-flash",
+) -> ConversionResult:
+    """Convert any supported file to markdown, routing by file extension.
+
+    PDFs are routed to the existing pymupdf4llm pipeline (with optional formula
+    OCR).  All other supported types go through MarkItDown.  Unsupported types
+    are attempted via MarkItDown and will raise ConversionError on failure.
+    """
+    ext = _get_extension_from_url(source_url)
+
+    if ext == ".pdf":
+        # Route PDFs to the existing high-quality pipeline
+        return await convert_pdf(
+            file_content,
+            timeout=timeout,
+            cache_key=cache_key,
+            openrouter_api_key=openrouter_api_key,
+            ocr_model=ocr_model,
+        )
+
+    # Route everything else through MarkItDown
+    # Use the extension for type inference; fall back to empty string
+    # so MarkItDown can attempt content-based detection
+    suffix = ext if ext else ".bin"
+
+    try:
+        result = await asyncio.wait_for(
+            asyncio.to_thread(_run_markitdown, file_content, suffix),
+            timeout=timeout,
+        )
+    except asyncio.TimeoutError as exc:
+        raise ConversionTimeoutError() from exc
 
     return result

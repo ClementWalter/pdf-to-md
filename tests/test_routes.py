@@ -12,6 +12,8 @@ from pdf2md.converter import ConversionError, ConversionResult, ConversionTimeou
 from pdf2md.downloader import (
     DownloadError,
     DownloadResult,
+    FileNotFoundError_,
+    FileTooLargeError,
     InvalidPDFURLError,
     PDFNotFoundError,
     PDFTooLargeError,
@@ -272,7 +274,8 @@ class TestConvertRoute:
     @patch("pdf2md.main.download_pdf")
     def test_invalid_pdf_url_returns_400(self, mock_download, client) -> None:
         mock_download.side_effect = InvalidPDFURLError("URL does not point to a valid PDF.")
-        response = client.get("/example.com/notapdf.html")
+        # Use .pdf extension so it routes through download_pdf
+        response = client.get("/example.com/notapdf.pdf")
         assert response.status_code == 400
 
     @patch("pdf2md.main.download_pdf")
@@ -371,3 +374,97 @@ class TestCacheHit:
         client.get("/example.com/doc.pdf")
         data = client.get("/stats").json()
         assert data["total_reads"] == 2
+
+
+class TestNonPdfConvertRoute:
+    """GET /<host>/<path> with non-PDF extensions routes through MarkItDown."""
+
+    @patch("pdf2md.main.convert_file")
+    @patch("pdf2md.main.download_file")
+    def test_docx_returns_200(self, mock_download, mock_convert, client) -> None:
+        mock_download.return_value = DownloadResult(
+            content=b"PK\x03\x04 fake docx",
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            source_url="https://example.com/report.docx",
+        )
+        mock_convert.return_value = ConversionResult(
+            markdown="# Report\n\nHello from DOCX.",
+            images={},
+            page_count=0,
+        )
+        response = client.get("/example.com/report.docx")
+        assert response.status_code == 200
+
+    @patch("pdf2md.main.convert_file")
+    @patch("pdf2md.main.download_file")
+    def test_docx_returns_markdown_content(self, mock_download, mock_convert, client) -> None:
+        mock_download.return_value = DownloadResult(
+            content=b"PK\x03\x04 fake docx",
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            source_url="https://example.com/report.docx",
+        )
+        mock_convert.return_value = ConversionResult(
+            markdown="# Report\n\nHello from DOCX.",
+            images={},
+            page_count=0,
+        )
+        response = client.get("/example.com/report.docx")
+        assert "# Report" in response.text
+
+    @patch("pdf2md.main.convert_file")
+    @patch("pdf2md.main.download_file")
+    def test_xlsx_returns_zero_page_count(self, mock_download, mock_convert, client) -> None:
+        mock_download.return_value = DownloadResult(
+            content=b"PK\x03\x04 fake xlsx",
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            source_url="https://example.com/data.xlsx",
+        )
+        mock_convert.return_value = ConversionResult(
+            markdown="| A | B |",
+            images={},
+            page_count=0,
+        )
+        response = client.get("/example.com/data.xlsx")
+        assert response.headers["x-page-count"] == "0"
+
+    @patch("pdf2md.main.convert_file")
+    @patch("pdf2md.main.download_file")
+    def test_html_conversion_returns_markdown_type(self, mock_download, mock_convert, client) -> None:
+        mock_download.return_value = DownloadResult(
+            content=b"<html><body>Hello</body></html>",
+            content_type="text/html",
+            source_url="https://example.com/page.html",
+        )
+        mock_convert.return_value = ConversionResult(
+            markdown="# Hello",
+            images={},
+            page_count=0,
+        )
+        response = client.get("/example.com/page.html")
+        assert "text/markdown" in response.headers["content-type"]
+
+    @patch("pdf2md.main.download_file")
+    def test_download_404_for_docx_returns_404(self, mock_download, client) -> None:
+        mock_download.side_effect = FileNotFoundError_("File not found at source URL.")
+        response = client.get("/example.com/missing.docx")
+        assert response.status_code == 404
+
+    @patch("pdf2md.main.convert_file")
+    @patch("pdf2md.main.download_file")
+    def test_conversion_error_for_unsupported_type_returns_400(
+        self, mock_download, mock_convert, client
+    ) -> None:
+        mock_download.return_value = DownloadResult(
+            content=b"binary junk",
+            content_type="application/octet-stream",
+            source_url="https://example.com/file.xyz",
+        )
+        mock_convert.side_effect = ConversionError("Could not convert .xyz file.")
+        response = client.get("/example.com/file.xyz")
+        assert response.status_code == 400
+
+    @patch("pdf2md.main.download_file")
+    def test_file_too_large_returns_413(self, mock_download, client) -> None:
+        mock_download.side_effect = FileTooLargeError("File exceeds maximum size of 50MB.")
+        response = client.get("/example.com/huge.docx")
+        assert response.status_code == 413

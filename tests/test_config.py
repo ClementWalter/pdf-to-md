@@ -41,10 +41,10 @@ class TestSettingsFromEnv:
         settings = Settings()
         assert settings.domain == "pdf2md.example.com"
 
-    def test_max_pdf_size_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("PDF2MD_MAX_PDF_SIZE_MB", "100")
+    def test_max_file_size_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("PDF2MD_MAX_FILE_SIZE_MB", "100")
         settings = Settings()
-        assert settings.max_pdf_size_mb == 100
+        assert settings.max_file_size_mb == 100
 
     def test_cache_dir_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("PDF2MD_CACHE_DIR", "/tmp/test-cache")
@@ -59,7 +59,7 @@ class TestSettingsProperties:
         settings = Settings()
         assert settings.max_pdf_size_bytes == 50 * 1024 * 1024
 
-    def test_max_pdf_size_bytes_custom(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("PDF2MD_MAX_PDF_SIZE_MB", "10")
+    def test_max_file_size_bytes_custom(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("PDF2MD_MAX_FILE_SIZE_MB", "10")
         settings = Settings()
-        assert settings.max_pdf_size_bytes == 10 * 1024 * 1024
+        assert settings.max_file_size_bytes == 10 * 1024 * 1024

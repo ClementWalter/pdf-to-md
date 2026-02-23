@@ -13,8 +13,8 @@ def render_landing(domain: str) -> str:
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>unpdf.it — PDF to Markdown API</title>
-<meta name="description" content="Convert any PDF to clean markdown. One URL rewrite. Free API for AI agents, developers, and LLMs.">
+<title>unpdf.it — Documents to Markdown API</title>
+<meta name="description" content="Convert any PDF, DOCX, PPTX, XLSX, HTML, CSV, and more to clean markdown. One URL rewrite. Free API for AI agents, developers, and LLMs.">
 <link rel="alternate" type="text/markdown" href="/llms.txt" title="LLM-friendly site info">
 <style>
   :root {{
@@ -316,11 +316,11 @@ def render_landing(domain: str) -> str:
 <div class="container">
   <div class="hero">
     <h1>un<span>pdf</span>.it</h1>
-    <p>Convert any PDF to clean markdown. One URL rewrite. Built for AI agents.</p>
+    <p>Convert any document to clean markdown. PDF, DOCX, PPTX, XLSX, HTML, CSV, and more. One URL rewrite. Built for AI agents.</p>
   </div>
 
   <div class="try-it">
-    <label>Paste a PDF URL and hit Convert</label>
+    <label>Paste a document URL (PDF, DOCX, PPTX, XLSX, HTML, CSV, ...) and hit Convert</label>
     <div class="input-row">
       <input type="text" id="pdfUrl" placeholder="https://arxiv.org/pdf/2301.00001v1.pdf" value="https://arxiv.org/pdf/2301.00001v1.pdf">
       <button id="convertBtn" onclick="convert()">Convert</button>
@@ -350,8 +350,8 @@ other outside sources including MetaMask and OpenSea...</pre>
     <h2>Why</h2>
     <div class="prose">
       <p>If you're reading this, you're probably not the target audience &mdash; your agent is.</p>
-      <p>In the agentic era, AI reads the web for you. But PDFs remain a blind spot.
-      Research papers, contracts, documentation &mdash; locked in a format your agent can't touch.</p>
+      <p>In the agentic era, AI reads the web for you. But documents remain a blind spot.
+      Research papers, spreadsheets, presentations, contracts &mdash; locked in formats your agent can't touch.</p>
       <p>unpdf.it fixes that. No API key, no upload, no friction.
       Just a URL your agent can fetch.</p>
       <p class="aside">Human, if you're still here: ask your agent to install the skill.
@@ -365,7 +365,7 @@ other outside sources including MetaMask and OpenSea...</pre>
     <div class="prose">
       <div class="stack-row">
         <span class="stack-label">URL rewrite</span>
-        <span class="stack-desc">Your agent prepends <code style="color:var(--green);background:var(--bg);padding:2px 6px;border-radius:4px;font-size:0.85rem;">unpdf.it/</code> to any PDF URL. That's the API.</span>
+        <span class="stack-desc">Your agent prepends <code style="color:var(--green);background:var(--bg);padding:2px 6px;border-radius:4px;font-size:0.85rem;">unpdf.it/</code> to any document URL. That's the API.</span>
       </div>
       <div class="stack-row">
         <span class="stack-label">Download</span>
@@ -373,7 +373,7 @@ other outside sources including MetaMask and OpenSea...</pre>
       </div>
       <div class="stack-row">
         <span class="stack-label">Convert</span>
-        <span class="stack-desc"><a href="https://github.com/pymupdf/RAG">pymupdf4llm</a> extracts text, tables, and images using rule-based parsing. No ML models, no GPU.</span>
+        <span class="stack-desc">PDFs: <a href="https://github.com/pymupdf/RAG">pymupdf4llm</a> extracts text, tables, and images. Other formats (DOCX, PPTX, XLSX, HTML, CSV, ...): <a href="https://github.com/microsoft/markitdown">MarkItDown</a> handles 20+ file types.</span>
       </div>
       <div class="stack-row">
         <span class="stack-label">Formula OCR</span>
@@ -443,7 +443,7 @@ other outside sources including MetaMask and OpenSea...</pre>
       <div class="price">Free</div>
       <div class="limits">During the beta period</div>
       <ul>
-        <li>PDFs up to 50 MB</li>
+        <li>Files up to 50 MB</li>
         <li>Images extracted and served</li>
         <li>Results cached for 30 days</li>
         <li>No authentication required</li>

@@ -1,4 +1,4 @@
-"""Tests for pdf2md.downloader — PDF fetching and validation."""
+"""Tests for pdf2md.downloader — PDF and generic file fetching and validation."""
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -8,9 +8,12 @@ import pytest
 from pdf2md.downloader import (
     DownloadError,
     DownloadTimeoutError,
+    FileNotFoundError_,
+    FileTooLargeError,
     InvalidPDFURLError,
     PDFNotFoundError,
     PDFTooLargeError,
+    download_file,
     download_pdf,
     normalize_url,
 )
@@ -167,3 +170,116 @@ class TestDownloadPdfSuccess:
                 timeout=10,
             )
             assert result.source_url == "https://example.com/doc.pdf"
+
+
+class TestDownloadFileErrors:
+    """Test error handling for generic file downloads (no magic-bytes check)."""
+
+    @pytest.mark.asyncio
+    async def test_404_raises_file_not_found(self) -> None:
+        mock_resp = _make_mock_response(404)
+        mock_client = _make_mock_client(mock_resp)
+        with patch("pdf2md.downloader.httpx.AsyncClient", return_value=mock_client):
+            with pytest.raises(FileNotFoundError_):
+                await download_file(
+                    "https://example.com/missing.docx",
+                    max_size_bytes=50 * 1024 * 1024,
+                    timeout=10,
+                )
+
+    @pytest.mark.asyncio
+    async def test_401_raises_download_error_with_502(self) -> None:
+        mock_resp = _make_mock_response(401)
+        mock_client = _make_mock_client(mock_resp)
+        with patch("pdf2md.downloader.httpx.AsyncClient", return_value=mock_client):
+            with pytest.raises(DownloadError) as exc_info:
+                await download_file(
+                    "https://example.com/private.docx",
+                    max_size_bytes=50 * 1024 * 1024,
+                    timeout=10,
+                )
+            assert exc_info.value.status_code == 502
+
+    @pytest.mark.asyncio
+    async def test_oversized_content_length_raises_too_large(self) -> None:
+        mock_resp = _make_mock_response(
+            200,
+            b"fake content",
+            headers={"content-length": str(100 * 1024 * 1024)},
+        )
+        mock_client = _make_mock_client(mock_resp)
+        with patch("pdf2md.downloader.httpx.AsyncClient", return_value=mock_client):
+            with pytest.raises(FileTooLargeError):
+                await download_file(
+                    "https://example.com/huge.docx",
+                    max_size_bytes=50 * 1024 * 1024,
+                    timeout=10,
+                )
+
+    @pytest.mark.asyncio
+    async def test_oversized_body_raises_too_large(self) -> None:
+        big_content = b"\x00" * (51 * 1024 * 1024)
+        mock_resp = _make_mock_response(200, big_content)
+        mock_client = _make_mock_client(mock_resp)
+        with patch("pdf2md.downloader.httpx.AsyncClient", return_value=mock_client):
+            with pytest.raises(FileTooLargeError):
+                await download_file(
+                    "https://example.com/huge.xlsx",
+                    max_size_bytes=50 * 1024 * 1024,
+                    timeout=10,
+                )
+
+
+class TestDownloadFileSuccess:
+    """Test successful generic file downloads."""
+
+    @pytest.mark.asyncio
+    async def test_valid_docx_returns_content(self) -> None:
+        content = b"PK\x03\x04 fake docx zip"
+        mock_resp = _make_mock_response(
+            200, content, {"content-type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"}
+        )
+        mock_client = _make_mock_client(mock_resp)
+        with patch("pdf2md.downloader.httpx.AsyncClient", return_value=mock_client):
+            result = await download_file(
+                "https://example.com/report.docx",
+                max_size_bytes=50 * 1024 * 1024,
+                timeout=10,
+            )
+            assert result.content == content
+
+    @pytest.mark.asyncio
+    async def test_html_content_passes_without_magic_bytes_check(self) -> None:
+        """Unlike download_pdf, download_file accepts any content (no %PDF check)."""
+        content = b"<html><body>Hello</body></html>"
+        mock_resp = _make_mock_response(200, content, {"content-type": "text/html"})
+        mock_client = _make_mock_client(mock_resp)
+        with patch("pdf2md.downloader.httpx.AsyncClient", return_value=mock_client):
+            result = await download_file(
+                "https://example.com/page.html",
+                max_size_bytes=50 * 1024 * 1024,
+                timeout=10,
+            )
+            assert result.content == content
+
+    @pytest.mark.asyncio
+    async def test_returns_source_url(self) -> None:
+        mock_resp = _make_mock_response(200, b"content", {"content-type": "text/csv"})
+        mock_client = _make_mock_client(mock_resp)
+        with patch("pdf2md.downloader.httpx.AsyncClient", return_value=mock_client):
+            result = await download_file(
+                "https://example.com/data.csv",
+                max_size_bytes=50 * 1024 * 1024,
+                timeout=10,
+            )
+            assert result.source_url == "https://example.com/data.csv"
+
+
+class TestBackwardCompatibleAliases:
+    """Verify backward-compatible error aliases still work."""
+
+    def test_pdf_too_large_is_file_too_large(self) -> None:
+        assert PDFTooLargeError is FileTooLargeError
+
+    def test_pdf_not_found_is_file_not_found(self) -> None:
+        assert PDFNotFoundError is FileNotFoundError_

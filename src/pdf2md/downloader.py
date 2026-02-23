@@ -1,4 +1,8 @@
-"""Download PDFs from the web with size and content-type validation."""
+"""Download files from the web with size validation.
+
+Supports both PDF-specific downloads (with magic-bytes check) and generic file
+downloads for non-PDF types routed through MarkItDown.
+"""
 
 import logging
 from dataclasses import dataclass
@@ -16,25 +20,31 @@ class DownloadError(Exception):
         self.status_code = status_code
 
 
-class PDFTooLargeError(DownloadError):
-    """The source PDF exceeds the configured size limit."""
+class FileTooLargeError(DownloadError):
+    """The source file exceeds the configured size limit."""
 
     def __init__(self, message: str) -> None:
         super().__init__(message, status_code=413)
 
 
-class PDFNotFoundError(DownloadError):
-    """The upstream server returned 404 for the PDF URL."""
+class FileNotFoundError_(DownloadError):
+    """The upstream server returned 404 for the file URL."""
 
     def __init__(self, message: str) -> None:
         super().__init__(message, status_code=404)
 
 
-class InvalidPDFURLError(DownloadError):
-    """The URL doesn't point to a valid PDF (wrong content-type, etc.)."""
+class InvalidFileURLError(DownloadError):
+    """The URL doesn't point to a valid file (wrong content-type, etc.)."""
 
     def __init__(self, message: str) -> None:
         super().__init__(message, status_code=400)
+
+
+# Backward-compatible aliases for PDF-specific error names
+PDFTooLargeError = FileTooLargeError
+PDFNotFoundError = FileNotFoundError_
+InvalidPDFURLError = InvalidFileURLError
 
 
 class DownloadTimeoutError(DownloadError):
@@ -133,5 +143,75 @@ async def download_pdf(
     return DownloadResult(
         content=content,
         content_type=response.headers.get("content-type", "application/pdf"),
+        source_url=url,
+    )
+
+
+async def download_file(
+    url: str,
+    *,
+    max_size_bytes: int,
+    timeout: int,
+) -> DownloadResult:
+    """Fetch any file from *url* with size validation (no magic-bytes check).
+
+    Used for non-PDF file types that are routed through MarkItDown.
+    """
+    logger.info("Downloading file from %s", url)
+
+    try:
+        async with httpx.AsyncClient(
+            follow_redirects=True,
+            timeout=httpx.Timeout(timeout),
+        ) as client:
+            async with client.stream("GET", url) as response:
+                if response.status_code == 404:
+                    raise FileNotFoundError_("File not found at source URL.")
+
+                if response.status_code in (401, 403):
+                    raise DownloadError(
+                        "Could not download file. It may not be publicly accessible.",
+                        status_code=502,
+                    )
+
+                if response.status_code >= 400:
+                    raise DownloadError(
+                        f"Could not download file. Upstream returned HTTP {response.status_code}.",
+                        status_code=502,
+                    )
+
+                # Size guard via Content-Length header (if present)
+                content_length = response.headers.get("content-length")
+                if content_length and int(content_length) > max_size_bytes:
+                    max_mb = max_size_bytes // (1024 * 1024)
+                    raise FileTooLargeError(
+                        f"File exceeds maximum size of {max_mb}MB."
+                    )
+
+                content = await response.aread()
+
+    except httpx.TimeoutException as exc:
+        raise DownloadTimeoutError("Download timed out.") from exc
+    except httpx.ConnectError as exc:
+        raise DownloadError(
+            "Could not download file. It may not be publicly accessible.",
+            status_code=502,
+        ) from exc
+    except DownloadError:
+        raise
+    except httpx.HTTPError as exc:
+        raise DownloadError(
+            "Could not download file. It may not be publicly accessible.",
+            status_code=502,
+        ) from exc
+
+    # Post-download size check (in case Content-Length was absent or lied)
+    if len(content) > max_size_bytes:
+        max_mb = max_size_bytes // (1024 * 1024)
+        raise FileTooLargeError(f"File exceeds maximum size of {max_mb}MB.")
+
+    return DownloadResult(
+        content=content,
+        content_type=response.headers.get("content-type", "application/octet-stream"),
         source_url=url,
     )

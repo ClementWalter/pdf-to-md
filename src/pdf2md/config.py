@@ -19,8 +19,8 @@ class Settings(BaseSettings):
     # Local filesystem path for the conversion cache
     cache_dir: Path = Path("./cache")
 
-    # Reject PDFs larger than this (megabytes)
-    max_pdf_size_mb: int = 50
+    # Reject files larger than this (megabytes)
+    max_file_size_mb: int = 50
 
     # Number of days before cached conversions expire
     cache_ttl_days: int = 30
@@ -38,9 +38,19 @@ class Settings(BaseSettings):
     ocr_model: str = "google/gemini-2.5-flash"
 
     @property
+    def max_pdf_size_mb(self) -> int:
+        """Backward-compatible alias for max_file_size_mb."""
+        return self.max_file_size_mb
+
+    @property
+    def max_file_size_bytes(self) -> int:
+        """Max file size expressed in bytes for comparison with Content-Length."""
+        return self.max_file_size_mb * 1024 * 1024
+
+    @property
     def max_pdf_size_bytes(self) -> int:
-        """Max PDF size expressed in bytes for comparison with Content-Length."""
-        return self.max_pdf_size_mb * 1024 * 1024
+        """Backward-compatible alias for max_file_size_bytes."""
+        return self.max_file_size_bytes
 
 
 def get_settings() -> Settings:

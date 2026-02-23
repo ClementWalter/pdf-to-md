@@ -17,9 +17,16 @@ from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 
 from pdf2md.cache import DiskCache, url_to_cache_key
 from pdf2md.config import Settings
-from pdf2md.converter import ConversionError, ConversionTimeoutError, convert_pdf
+from pdf2md.converter import (
+    ConversionError,
+    ConversionTimeoutError,
+    convert_file,
+    convert_pdf,
+    _get_extension_from_url,
+)
 from pdf2md.downloader import (
     DownloadError,
+    download_file,
     download_pdf,
     normalize_url,
 )
@@ -87,32 +94,39 @@ _SKILL_MD = """\
 ---
 name: unpdf
 description: >
-  Convert PDF URLs to markdown using unpdf.it. Use when the user shares a PDF
-  link, asks to read/summarize/analyze a PDF, or when you encounter a .pdf URL
-  that needs to be read. Converts any publicly accessible PDF to clean markdown.
+  Convert document URLs to markdown using unpdf.it. Use when the user shares a
+  PDF, DOCX, PPTX, XLSX, HTML, CSV, or other document link, asks to
+  read/summarize/analyze it, or when you encounter a document URL that needs to
+  be read. Converts any publicly accessible document to clean markdown.
 allowed-tools: WebFetch
 user-invocable: true
-argument-hint: "<pdf-url>"
+argument-hint: "<document-url>"
 ---
 
-# unpdf.it - PDF to Markdown
+# unpdf.it - Documents to Markdown
 
-When you encounter a PDF URL or the user asks you to read a PDF, convert it
-to markdown using unpdf.it instead of trying to download and parse it yourself.
+When you encounter a document URL or the user asks you to read a document,
+convert it to markdown using unpdf.it instead of trying to download and parse
+it yourself.
+
+## Supported formats
+
+PDF, DOCX, PPTX, XLSX, XLS, HTML, CSV, JSON, XML, EPUB, and more.
 
 ## How it works
 
-Strip the protocol (`https://` or `http://`) from the PDF URL and prepend
+Strip the protocol (`https://` or `http://`) from the document URL and prepend
 `https://unpdf.it/`:
 
-| Original PDF URL | unpdf.it URL |
+| Original URL | unpdf.it URL |
 |---|---|
 | `https://arxiv.org/pdf/2301.00001v1.pdf` | `https://unpdf.it/arxiv.org/pdf/2301.00001v1.pdf` |
-| `https://example.com/report.pdf` | `https://unpdf.it/example.com/report.pdf` |
+| `https://example.com/report.docx` | `https://unpdf.it/example.com/report.docx` |
+| `https://example.com/data.xlsx` | `https://unpdf.it/example.com/data.xlsx` |
 
 ## Steps
 
-1. Take the PDF URL (from the user's message, a webpage, or a reference)
+1. Take the document URL (from the user's message, a webpage, or a reference)
 2. Remove the `https://` prefix
 3. Fetch `https://unpdf.it/<host>/<path>` using WebFetch
 4. The response is clean markdown with headings, tables, and image references
@@ -127,9 +141,10 @@ Use WebFetch with:
 
 ## When to use
 
-- User shares a `.pdf` link and asks to read, summarize, or analyze it
-- You find a PDF reference while researching and need its content
-- Any publicly accessible PDF URL needs to be converted to text
+- User shares a document link (.pdf, .docx, .pptx, .xlsx, .html, .csv, etc.)
+  and asks to read, summarize, or analyze it
+- You find a document reference while researching and need its content
+- Any publicly accessible document URL needs to be converted to text
 
 ## Important notes
 
@@ -137,11 +152,14 @@ Use WebFetch with:
   is individually OCR'd. This can take up to 1-2 minutes for large documents.
   Wait for the full response — do not retry or time out early.
 - First conversion is slow; subsequent requests are served from cache instantly.
+- Non-PDF formats (DOCX, PPTX, etc.) are converted via MarkItDown and are
+  typically faster than PDFs.
 
 ## Limitations
 
-- Only works with publicly accessible URLs (not local files or authenticated PDFs)
+- Only works with publicly accessible URLs (not local files or authenticated documents)
 - For local PDF files, use the built-in Read tool instead (Claude can read PDFs natively)
+- Non-PDF formats don't extract embedded images
 """
 
 
@@ -157,11 +175,13 @@ async def llms_txt() -> Response:
     settings = _get_settings()
     content = (
         "# unpdf.it\n\n"
-        "> Convert any publicly accessible PDF to clean markdown via URL rewrite. "
+        "> Convert any publicly accessible document to clean markdown via URL rewrite. "
+        "Supports PDF, DOCX, PPTX, XLSX, HTML, CSV, JSON, XML, EPUB, and more. "
         "No API key, no upload. Built for AI agents.\n\n"
         "## API\n\n"
-        f"Prepend `https://{settings.domain}/` to any PDF URL (without its protocol):\n\n"
-        f"- `https://arxiv.org/pdf/2301.00001v1.pdf` → `https://{settings.domain}/arxiv.org/pdf/2301.00001v1.pdf`\n\n"
+        f"Prepend `https://{settings.domain}/` to any document URL (without its protocol):\n\n"
+        f"- `https://arxiv.org/pdf/2301.00001v1.pdf` → `https://{settings.domain}/arxiv.org/pdf/2301.00001v1.pdf`\n"
+        f"- `https://example.com/report.docx` → `https://{settings.domain}/example.com/report.docx`\n\n"
         "The response is `text/markdown` with headers `X-Page-Count`, `X-Cached`, `X-Conversion-Time-Ms`.\n\n"
         "## Resources\n\n"
         f"- [SKILL.md](https://{settings.domain}/skill): Agent Skills standard skill definition\n"
@@ -170,7 +190,7 @@ async def llms_txt() -> Response:
         "## Optional\n\n"
         "- Images extracted from PDFs are served at `/images/<cache_key>/<filename>`\n"
         "- Add `?refresh=true` to bypass cache\n"
-        "- Max PDF size: 50 MB\n"
+        "- Max file size: 50 MB\n"
         "- Cache TTL: 30 days\n"
     )
     return _markdown_response(content)
@@ -182,21 +202,30 @@ async def llms_full_txt() -> Response:
     settings = _get_settings()
     content = (
         "# unpdf.it — Full Documentation\n\n"
-        "> Convert any publicly accessible PDF to clean markdown via URL rewrite. "
+        "> Convert any publicly accessible document to clean markdown via URL rewrite. "
+        "Supports PDF, DOCX, PPTX, XLSX, HTML, CSV, JSON, XML, EPUB, and more. "
         "No API key required. Free during beta.\n\n"
         "## How to use\n\n"
-        "Take any PDF URL, strip the `https://` prefix, and prepend "
+        "Take any document URL, strip the `https://` prefix, and prepend "
         f"`https://{settings.domain}/`.\n\n"
         "### Example\n\n"
         "```\n"
         "Input:  https://arxiv.org/pdf/2301.00001v1.pdf\n"
-        f"Output: https://{settings.domain}/arxiv.org/pdf/2301.00001v1.pdf\n"
+        f"Output: https://{settings.domain}/arxiv.org/pdf/2301.00001v1.pdf\n\n"
+        "Input:  https://example.com/report.docx\n"
+        f"Output: https://{settings.domain}/example.com/report.docx\n"
         "```\n\n"
+        "### Supported formats\n\n"
+        "| Format | Engine | Images | Page count |\n"
+        "|--------|--------|--------|------------|\n"
+        "| PDF | pymupdf4llm + formula OCR | Yes | Yes |\n"
+        "| DOCX, PPTX, XLSX, XLS | MarkItDown | No | No |\n"
+        "| HTML, CSV, JSON, XML, EPUB | MarkItDown | No | No |\n\n"
         "### Response format\n\n"
         "- Content-Type: `text/markdown; charset=utf-8`\n"
         "- Headers:\n"
-        "  - `X-Source-URL`: the original PDF URL\n"
-        "  - `X-Page-Count`: number of pages in the PDF\n"
+        "  - `X-Source-URL`: the original document URL\n"
+        "  - `X-Page-Count`: number of pages (PDF only, `0` for other formats)\n"
         "  - `X-Cached`: `true` if served from cache, `false` if freshly converted\n"
         "  - `X-Conversion-Time-Ms`: conversion time in milliseconds (0 if cached)\n\n"
         "### Endpoints\n\n"
@@ -208,10 +237,10 @@ async def llms_full_txt() -> Response:
         f"| GET | `/llms.txt` | LLM-friendly site summary |\n"
         f"| GET | `/llms-full.txt` | This file — full API reference |\n"
         f"| GET | `/images/<key>/<file>` | Serve extracted image from cache |\n"
-        f"| GET | `/<host>/<path>` | Convert PDF at `https://<host>/<path>` to markdown |\n\n"
+        f"| GET | `/<host>/<path>` | Convert document at `https://<host>/<path>` to markdown |\n\n"
         "### Query parameters\n\n"
-        "- `?refresh=true`: bypass cache and re-convert the PDF\n"
-        "- All other query parameters are forwarded to the source PDF URL\n\n"
+        "- `?refresh=true`: bypass cache and re-convert the document\n"
+        "- All other query parameters are forwarded to the source URL\n\n"
         "### Error responses\n\n"
         "Errors are returned as `text/markdown` with format:\n\n"
         "```markdown\n"
@@ -220,13 +249,13 @@ async def llms_full_txt() -> Response:
         "```\n\n"
         "| Status | Meaning |\n"
         "|--------|---------|\n"
-        "| 400 | Invalid URL or corrupt PDF |\n"
-        "| 404 | PDF not found at source URL |\n"
-        "| 413 | PDF exceeds 50 MB size limit |\n"
+        "| 400 | Invalid URL or unsupported/corrupt document |\n"
+        "| 404 | Document not found at source URL |\n"
+        "| 413 | Document exceeds 50 MB size limit |\n"
         "| 502 | Source server error |\n"
         "| 504 | Conversion timed out |\n\n"
         "### Limits\n\n"
-        "- Max PDF size: 50 MB\n"
+        "- Max file size: 50 MB\n"
         "- Conversion timeout: 300 seconds (math-heavy PDFs with formula OCR may take longer)\n"
         "- Download timeout: 30 seconds\n"
         "- Cache TTL: 30 days\n"
@@ -247,8 +276,9 @@ async def llms_full_txt() -> Response:
         "```\n\n"
         "### Tech stack\n\n"
         "- [pymupdf4llm](https://github.com/pymupdf/RAG): rule-based PDF to markdown (no ML models)\n"
+        "- [MarkItDown](https://github.com/microsoft/markitdown): DOCX, PPTX, XLSX, HTML, CSV, and more\n"
         "- [FastAPI](https://fastapi.tiangolo.com/): async web framework\n"
-        "- [httpx](https://www.python-httpx.org/): async HTTP client for PDF downloads\n"
+        "- [httpx](https://www.python-httpx.org/): async HTTP client for document downloads\n"
         "- [Scaleway Serverless Containers](https://www.scaleway.com/en/serverless-containers/): scale-to-zero deployment\n\n"
         "### Source\n\n"
         "- GitHub: https://github.com/ClementWalter/pdf-to-md\n"
@@ -353,29 +383,49 @@ async def convert(full_path: str, request: Request) -> Response:
                     },
                 )
 
-        # Download
+        # Detect file type from URL extension to choose pipeline
+        ext = _get_extension_from_url(source_url)
+        is_pdf = ext == ".pdf"
+
+        # Download — PDFs get magic-bytes validation, others just size check
         try:
-            download_result = await download_pdf(
-                source_url,
-                max_size_bytes=settings.max_pdf_size_bytes,
-                timeout=settings.download_timeout,
-            )
+            if is_pdf:
+                download_result = await download_pdf(
+                    source_url,
+                    max_size_bytes=settings.max_file_size_bytes,
+                    timeout=settings.download_timeout,
+                )
+            else:
+                download_result = await download_file(
+                    source_url,
+                    max_size_bytes=settings.max_file_size_bytes,
+                    timeout=settings.download_timeout,
+                )
         except DownloadError as exc:
             return _markdown_response(
                 _error_md(str(exc)),
                 status_code=exc.status_code,
             )
 
-        # Convert
+        # Convert — PDFs use the high-quality pymupdf4llm pipeline, others
+        # go through MarkItDown
         start = time.monotonic()
         try:
-            conversion = await convert_pdf(
-                download_result.content,
-                timeout=settings.conversion_timeout,
-                cache_key=cache_key,
-                openrouter_api_key=settings.openrouter_api_key,
-                ocr_model=settings.ocr_model,
-            )
+            if is_pdf:
+                conversion = await convert_pdf(
+                    download_result.content,
+                    timeout=settings.conversion_timeout,
+                    cache_key=cache_key,
+                    openrouter_api_key=settings.openrouter_api_key,
+                    ocr_model=settings.ocr_model,
+                )
+            else:
+                conversion = await convert_file(
+                    download_result.content,
+                    source_url=source_url,
+                    timeout=settings.conversion_timeout,
+                    cache_key=cache_key,
+                )
         except ConversionTimeoutError as exc:
             return _markdown_response(
                 _error_md(str(exc)),
