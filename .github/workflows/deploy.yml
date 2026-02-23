@@ -63,7 +63,7 @@ jobs:
             min-scale=1 \
             environment-variables.PDF2MD_DOMAIN="unpdf.it" \
             environment-variables.PDF2MD_CACHE_DIR=/app/cache \
-            environment-variables.PDF2MD_MAX_PDF_SIZE_MB=50 \
+            environment-variables.PDF2MD_MAX_FILE_SIZE_MB=50 \
             environment-variables.PDF2MD_CACHE_TTL_DAYS=30 \
             environment-variables.PDF2MD_DOWNLOAD_TIMEOUT=30 \
             environment-variables.PDF2MD_CONVERSION_TIMEOUT=300 \
