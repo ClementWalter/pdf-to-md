@@ -468,3 +468,75 @@ class TestNonPdfConvertRoute:
         mock_download.side_effect = FileTooLargeError("File exceeds maximum size of 50MB.")
         response = client.get("/example.com/huge.docx")
         assert response.status_code == 413
+
+
+class TestExtensionlessUrlConversion:
+    """GET /<host>/<path> with no file extension but PDF content routes correctly."""
+
+    @patch("pdf2md.main.convert_pdf")
+    @patch("pdf2md.main.download_file")
+    def test_extensionless_pdf_returns_200(self, mock_download, mock_convert, client) -> None:
+        """URL with no extension but PDF magic bytes should succeed."""
+        mock_download.return_value = DownloadResult(
+            content=b"%PDF-1.7 fake pdf",
+            content_type="application/pdf",
+            source_url="https://www.eauction.gr/Auction/GetFile?par1=abc",
+        )
+        mock_convert.return_value = ConversionResult(
+            markdown="# Auction Document",
+            images={},
+            page_count=4,
+        )
+        response = client.get("/www.eauction.gr/Auction/GetFile?par1=abc")
+        assert response.status_code == 200
+
+    @patch("pdf2md.main.convert_pdf")
+    @patch("pdf2md.main.download_file")
+    def test_extensionless_pdf_routes_to_convert_pdf(self, mock_download, mock_convert, client) -> None:
+        """Content-based detection should route PDF bytes to convert_pdf, not convert_file."""
+        mock_download.return_value = DownloadResult(
+            content=b"%PDF-1.7 fake pdf",
+            content_type="application/pdf",
+            source_url="https://www.eauction.gr/Auction/GetFile?par1=abc",
+        )
+        mock_convert.return_value = ConversionResult(
+            markdown="# Auction Document",
+            images={},
+            page_count=4,
+        )
+        client.get("/www.eauction.gr/Auction/GetFile?par1=abc")
+        mock_convert.assert_called_once()
+
+    @patch("pdf2md.main.convert_pdf")
+    @patch("pdf2md.main.download_file")
+    def test_extensionless_pdf_returns_correct_page_count(self, mock_download, mock_convert, client) -> None:
+        mock_download.return_value = DownloadResult(
+            content=b"%PDF-1.7 fake pdf",
+            content_type="application/pdf",
+            source_url="https://www.eauction.gr/Auction/GetFile?par1=abc",
+        )
+        mock_convert.return_value = ConversionResult(
+            markdown="# Auction Document",
+            images={},
+            page_count=4,
+        )
+        response = client.get("/www.eauction.gr/Auction/GetFile?par1=abc")
+        assert response.headers["x-page-count"] == "4"
+
+    @patch("pdf2md.main.convert_file")
+    @patch("pdf2md.main.download_file")
+    def test_extensionless_non_pdf_routes_to_convert_file(self, mock_download, mock_convert, client) -> None:
+        """Extensionless URL with non-PDF content should route through convert_file."""
+        mock_download.return_value = DownloadResult(
+            content=b"<html><body>Hello</body></html>",
+            content_type="text/html",
+            source_url="https://example.com/api/render",
+        )
+        mock_convert.return_value = ConversionResult(
+            markdown="# Hello",
+            images={},
+            page_count=0,
+        )
+        response = client.get("/example.com/api/render")
+        assert response.status_code == 200
+        mock_convert.assert_called_once()

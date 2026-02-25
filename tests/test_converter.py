@@ -9,11 +9,12 @@ from pdf2md.converter import (
     ConversionError,
     ConversionResult,
     ConversionTimeoutError,
-    convert_file,
-    convert_pdf,
+    _detect_type_from_content,
     _get_extension_from_url,
     _run_markitdown,
     _run_pymupdf,
+    convert_file,
+    convert_pdf,
 )
 
 
@@ -149,6 +150,74 @@ class TestGetExtensionFromUrl:
         assert _get_extension_from_url("https://example.com/doc.pdf?v=1") == ".pdf"
 
 
+class TestDetectTypeFromContent:
+    """Test content-based file type detection via magic bytes and Content-Type."""
+
+    def test_pdf_magic_bytes(self) -> None:
+        assert _detect_type_from_content(b"%PDF-1.7 fake content") == ".pdf"
+
+    def test_pdf_magic_bytes_ignores_content_type(self) -> None:
+        # Magic bytes take precedence over Content-Type header
+        assert _detect_type_from_content(b"%PDF-1.4", "application/octet-stream") == ".pdf"
+
+    def test_docx_zip_detection(self) -> None:
+        """A ZIP containing word/ is detected as DOCX."""
+        import io, zipfile
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as zf:
+            zf.writestr("word/document.xml", "<document/>")
+        assert _detect_type_from_content(buf.getvalue()) == ".docx"
+
+    def test_pptx_zip_detection(self) -> None:
+        """A ZIP containing ppt/ is detected as PPTX."""
+        import io, zipfile
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as zf:
+            zf.writestr("ppt/presentation.xml", "<presentation/>")
+        assert _detect_type_from_content(buf.getvalue()) == ".pptx"
+
+    def test_xlsx_zip_detection(self) -> None:
+        """A ZIP containing xl/ is detected as XLSX."""
+        import io, zipfile
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as zf:
+            zf.writestr("xl/workbook.xml", "<workbook/>")
+        assert _detect_type_from_content(buf.getvalue()) == ".xlsx"
+
+    def test_epub_zip_detection(self) -> None:
+        """A ZIP containing META-INF/container.xml is detected as EPUB."""
+        import io, zipfile
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as zf:
+            zf.writestr("META-INF/container.xml", "<container/>")
+        assert _detect_type_from_content(buf.getvalue()) == ".epub"
+
+    def test_content_type_pdf_fallback(self) -> None:
+        assert _detect_type_from_content(b"not-magic", "application/pdf") == ".pdf"
+
+    def test_content_type_html_fallback(self) -> None:
+        assert _detect_type_from_content(b"<html>", "text/html; charset=utf-8") == ".html"
+
+    def test_content_type_csv_fallback(self) -> None:
+        assert _detect_type_from_content(b"a,b,c", "text/csv") == ".csv"
+
+    def test_content_type_docx_fallback(self) -> None:
+        mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        assert _detect_type_from_content(b"binary", mime) == ".docx"
+
+    def test_unknown_content_returns_empty(self) -> None:
+        assert _detect_type_from_content(b"random bytes") == ""
+
+    def test_unknown_content_type_returns_empty(self) -> None:
+        assert _detect_type_from_content(b"random", "application/octet-stream") == ""
+
+    def test_bad_zip_falls_through_to_content_type(self) -> None:
+        """PK magic bytes but corrupt ZIP should fall through to Content-Type."""
+        # PK magic bytes followed by garbage
+        bad_zip = b"PK\x03\x04" + b"\x00" * 100
+        assert _detect_type_from_content(bad_zip, "application/pdf") == ".pdf"
+
+
 class TestRunMarkitdown:
     """Test _run_markitdown with MarkItDown mocked."""
 
@@ -247,6 +316,48 @@ class TestConvertFileRouting:
                 timeout=10,
             )
             mock_md.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_no_extension_pdf_content_routes_to_convert_pdf(self) -> None:
+        """Extensionless URL with PDF magic bytes should route to convert_pdf."""
+        mock_result = ConversionResult(markdown="PDF content", images={}, page_count=5)
+        with patch("pdf2md.converter.convert_pdf", return_value=mock_result) as mock_pdf:
+            result = await convert_file(
+                b"%PDF-1.7 fake pdf content",
+                source_url="https://example.com/GetFile?id=123",
+                timeout=10,
+            )
+            mock_pdf.assert_called_once()
+            assert result.page_count == 5
+
+    @pytest.mark.asyncio
+    async def test_no_extension_pdf_content_type_routes_to_convert_pdf(self) -> None:
+        """Extensionless URL with application/pdf Content-Type should route to convert_pdf."""
+        mock_result = ConversionResult(markdown="PDF via header", images={}, page_count=2)
+        with patch("pdf2md.converter.convert_pdf", return_value=mock_result) as mock_pdf:
+            result = await convert_file(
+                b"non-magic content",
+                source_url="https://example.com/GetFile?id=456",
+                content_type="application/pdf",
+                timeout=10,
+            )
+            mock_pdf.assert_called_once()
+            assert result.page_count == 2
+
+    @pytest.mark.asyncio
+    async def test_no_extension_html_content_type_routes_to_markitdown(self) -> None:
+        """Extensionless URL with text/html Content-Type routes through MarkItDown with .html suffix."""
+        mock_result = ConversionResult(markdown="# Hello", images={}, page_count=0)
+        with patch("pdf2md.converter._run_markitdown", return_value=mock_result) as mock_md:
+            await convert_file(
+                b"<html><body>Hello</body></html>",
+                source_url="https://example.com/resource",
+                content_type="text/html; charset=utf-8",
+                timeout=10,
+            )
+            # Should be called with .html suffix (not .bin)
+            mock_md.assert_called_once()
+            assert mock_md.call_args[0][1] == ".html"
 
     @pytest.mark.asyncio
     async def test_markitdown_timeout_raises_conversion_timeout(self) -> None:

@@ -18,11 +18,13 @@ from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from pdf2md.cache import DiskCache, url_to_cache_key
 from pdf2md.config import Settings
 from pdf2md.converter import (
+    MARKITDOWN_EXTENSIONS,
     ConversionError,
     ConversionTimeoutError,
+    _detect_type_from_content,
+    _get_extension_from_url,
     convert_file,
     convert_pdf,
-    _get_extension_from_url,
 )
 from pdf2md.downloader import (
     DownloadError,
@@ -407,6 +409,15 @@ async def convert(full_path: str, request: Request) -> Response:
                 status_code=exc.status_code,
             )
 
+        # When the URL has no recognized extension, detect from content
+        # so extensionless URLs serving PDFs get the right pipeline
+        if not ext or ext not in MARKITDOWN_EXTENSIONS | {".pdf"}:
+            detected = _detect_type_from_content(
+                download_result.content, download_result.content_type
+            )
+            if detected == ".pdf":
+                is_pdf = True
+
         # Convert — PDFs use the high-quality pymupdf4llm pipeline, others
         # go through MarkItDown
         start = time.monotonic()
@@ -423,6 +434,7 @@ async def convert(full_path: str, request: Request) -> Response:
                 conversion = await convert_file(
                     download_result.content,
                     source_url=source_url,
+                    content_type=download_result.content_type,
                     timeout=settings.conversion_timeout,
                     cache_key=cache_key,
                 )

@@ -10,8 +10,10 @@ MarkItDown library which handles 20+ file types with decent quality.
 """
 
 import asyncio
+import io
 import logging
 import tempfile
+import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlparse
@@ -330,10 +332,67 @@ def _get_extension_from_url(url: str) -> str:
     return f".{ext.lower()}" if ext else ""
 
 
+# Map Content-Type header values to file extensions
+_CONTENT_TYPE_TO_EXT: dict[str, str] = {
+    "application/pdf": ".pdf",
+    "text/html": ".html",
+    "text/csv": ".csv",
+    "application/json": ".json",
+    "application/xml": ".xml",
+    "text/xml": ".xml",
+    "application/epub+zip": ".epub",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation": ".pptx",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ".xlsx",
+    "application/vnd.ms-excel": ".xls",
+}
+
+# Map ZIP internal markers to extensions — order matters for first-match
+_ZIP_CONTENT_MARKERS: list[tuple[str, str]] = [
+    ("word/", ".docx"),
+    ("ppt/", ".pptx"),
+    ("xl/", ".xlsx"),
+    ("META-INF/container.xml", ".epub"),
+]
+
+
+def _detect_type_from_content(file_content: bytes, content_type: str = "") -> str:
+    """Sniff file type from magic bytes and Content-Type header.
+
+    Checks magic bytes first (more reliable than headers), then falls back
+    to the Content-Type header value.  Returns a file extension string
+    (e.g. ".pdf") or "" if the type cannot be determined.
+    """
+    # Magic bytes: PDF always starts with %PDF
+    if file_content[:4] == b"%PDF":
+        return ".pdf"
+
+    # Magic bytes: ZIP-based formats (DOCX, PPTX, XLSX, EPUB)
+    if file_content[:4] == b"PK\x03\x04":
+        try:
+            with zipfile.ZipFile(io.BytesIO(file_content)) as zf:
+                names = zf.namelist()
+                for marker, ext in _ZIP_CONTENT_MARKERS:
+                    if any(name.startswith(marker) for name in names):
+                        return ext
+        except zipfile.BadZipFile:
+            pass
+        # Valid ZIP but no recognized internal structure — fall through to
+        # Content-Type header for best-effort detection
+    # Fallback: Content-Type header (strip parameters like charset)
+    if content_type:
+        mime = content_type.split(";")[0].strip().lower()
+        if mime in _CONTENT_TYPE_TO_EXT:
+            return _CONTENT_TYPE_TO_EXT[mime]
+
+    return ""
+
+
 async def convert_file(
     file_content: bytes,
     *,
     source_url: str,
+    content_type: str = "",
     timeout: int = 300,
     cache_key: str = "",
     openrouter_api_key: str = "",
@@ -344,8 +403,17 @@ async def convert_file(
     PDFs are routed to the existing pymupdf4llm pipeline (with optional formula
     OCR).  All other supported types go through MarkItDown.  Unsupported types
     are attempted via MarkItDown and will raise ConversionError on failure.
+
+    When the URL has no recognizable extension, magic-byte sniffing and the
+    Content-Type header are used to detect the real file type.
     """
     ext = _get_extension_from_url(source_url)
+
+    # When URL extension is missing or unrecognized, detect from content
+    if not ext or ext not in MARKITDOWN_EXTENSIONS | {".pdf"}:
+        detected = _detect_type_from_content(file_content, content_type)
+        if detected:
+            ext = detected
 
     if ext == ".pdf":
         # Route PDFs to the existing high-quality pipeline
@@ -358,7 +426,7 @@ async def convert_file(
         )
 
     # Route everything else through MarkItDown
-    # Use the extension for type inference; fall back to empty string
+    # Use the extension for type inference; fall back to .bin
     # so MarkItDown can attempt content-based detection
     suffix = ext if ext else ".bin"
 
