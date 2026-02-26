@@ -193,7 +193,7 @@ async def llms_txt() -> Response:
         "- Images extracted from PDFs are served at `/images/<cache_key>/<filename>`\n"
         "- Add `?refresh=true` to bypass cache\n"
         "- Max file size: 50 MB\n"
-        "- Cache TTL: 30 days\n"
+        "- Cache: permanent (no expiration)\n"
     )
     return _markdown_response(content)
 
@@ -260,7 +260,7 @@ async def llms_full_txt() -> Response:
         "- Max file size: 50 MB\n"
         "- Conversion timeout: 300 seconds (math-heavy PDFs with formula OCR may take longer)\n"
         "- Download timeout: 30 seconds\n"
-        "- Cache TTL: 30 days\n"
+        "- Cache: permanent (no expiration)\n"
         "- No authentication required\n"
         "- No rate limit (fair use)\n\n"
         "### Install as agent skill\n\n"

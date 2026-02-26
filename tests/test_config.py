@@ -22,7 +22,7 @@ class TestSettingsDefaults:
 
     def test_default_cache_ttl_days(self) -> None:
         settings = Settings()
-        assert settings.cache_ttl_days == 30
+        assert settings.cache_ttl_days == 0
 
     def test_default_download_timeout(self) -> None:
         settings = Settings()

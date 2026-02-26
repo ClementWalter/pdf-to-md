@@ -22,8 +22,8 @@ class Settings(BaseSettings):
     # Reject files larger than this (megabytes)
     max_file_size_mb: int = 50
 
-    # Number of days before cached conversions expire
-    cache_ttl_days: int = 30
+    # Number of days before cached conversions expire (0 = keep forever)
+    cache_ttl_days: int = 0
 
     # Timeout in seconds for downloading source PDFs
     download_timeout: int = 30

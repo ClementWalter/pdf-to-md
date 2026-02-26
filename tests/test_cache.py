@@ -17,7 +17,7 @@ def cache_dir(tmp_path):
 @pytest.fixture()
 def cache(cache_dir):
     """Provide a DiskCache instance backed by a temp directory."""
-    return DiskCache(cache_dir, ttl_days=30)
+    return DiskCache(cache_dir)
 
 
 class TestUrlToCacheKey:
@@ -84,23 +84,41 @@ class TestDiskCachePutAndGet:
 
 
 class TestDiskCacheTTL:
-    """Verify cache expiration."""
+    """Verify cache expiration when TTL is enabled."""
 
-    def test_expired_entry_returns_none(self, cache_dir) -> None:
-        # Create a cache with 0-day TTL — everything is immediately expired
-        cache = DiskCache(cache_dir, ttl_days=0)
+    def test_expired_entry_returns_none_when_ttl_enabled(self, cache_dir) -> None:
+        # Create a cache with 1-day TTL to test expiration still works when enabled
+        cache = DiskCache(cache_dir, ttl_days=1)
         url = "https://example.com/doc.pdf"
 
-        # Manually write an entry with a timestamp in the past
+        # Manually write an entry with a timestamp beyond TTL
         key = url_to_cache_key(url)
         entry_dir = cache_dir / key
         entry_dir.mkdir(parents=True)
         (entry_dir / "result.md").write_text("old content")
         (entry_dir / "images").mkdir()
-        meta = {"source_url": url, "created_at": time.time() - 100, "page_count": 1, "image_count": 0}
+        meta = {"source_url": url, "created_at": time.time() - 86401, "page_count": 1, "image_count": 0}
         (entry_dir / "meta.json").write_text(json.dumps(meta))
 
         assert cache.get(url) is None
+
+    def test_old_entry_persists_when_ttl_disabled(self, cache_dir) -> None:
+        # Default ttl_days=0 means keep forever
+        cache = DiskCache(cache_dir)
+        url = "https://example.com/doc.pdf"
+
+        # Manually write an entry with a very old timestamp
+        key = url_to_cache_key(url)
+        entry_dir = cache_dir / key
+        entry_dir.mkdir(parents=True)
+        (entry_dir / "result.md").write_text("ancient content")
+        (entry_dir / "images").mkdir()
+        meta = {"source_url": url, "created_at": 0, "page_count": 1, "image_count": 0}
+        (entry_dir / "meta.json").write_text(json.dumps(meta))
+
+        entry = cache.get(url)
+        assert entry is not None
+        assert entry.markdown == "ancient content"
 
 
 class TestDiskCacheImagePath:

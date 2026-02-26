@@ -44,9 +44,10 @@ def url_to_cache_key(url: str) -> str:
 class DiskCache:
     """Read/write conversion results on the local filesystem."""
 
-    def __init__(self, cache_dir: Path, ttl_days: int = 30) -> None:
+    def __init__(self, cache_dir: Path, ttl_days: int = 0) -> None:
         self._cache_dir = cache_dir
-        self._ttl_seconds = ttl_days * 86400
+        # 0 means keep forever — no expiration
+        self._ttl_seconds = ttl_days * 86400 if ttl_days > 0 else 0
         self._cache_dir.mkdir(parents=True, exist_ok=True)
 
     def _entry_dir(self, cache_key: str) -> Path:
@@ -68,9 +69,10 @@ class DiskCache:
             logger.warning("Corrupt cache metadata for %s — treating as miss", cache_key)
             return None
 
-        # TTL check
         created_at = meta.get("created_at", 0)
-        if time.time() - created_at > self._ttl_seconds:
+
+        # TTL check — skip when ttl_seconds is 0 (keep forever)
+        if self._ttl_seconds > 0 and time.time() - created_at > self._ttl_seconds:
             logger.info("Cache entry expired for %s", url)
             self._evict(cache_key)
             return None
