@@ -3,16 +3,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "bunx smithers run workflow.tsx"
+    "start": "bunx smthrs run workflow.tsx"
   },
   "dependencies": {
-    "smithers-orchestrator": "latest",
+    "smthrs": "^0.33.0",
     "zod": "^4.3.6",
     "@ai-sdk/anthropic": "^1.0.0",
     "@ai-sdk/openai": "^1.0.0"
-  },
-  "patchedDependencies": {
-    "smithers-orchestrator@0.6.0": "patches/smithers-orchestrator@0.6.0.patch"
   },
   "devDependencies": {
     "@types/bun": "latest",
