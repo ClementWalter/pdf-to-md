@@ -18,4 +18,4 @@ echo "╚═══════════════════════�
 # Clean previous run state
 rm -f smithers.db*
 
-bunx smithers run workflow.tsx
+bunx smthrs run workflow.tsx

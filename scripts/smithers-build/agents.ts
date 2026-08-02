@@ -2,7 +2,7 @@
 //
 // Three agent roles: implementer (Codex), reviewer (Claude), final reviewer (Claude)
 
-import { ClaudeCodeAgent } from "smithers-orchestrator";
+import { ClaudeCodeAgent } from "smthrs";
 import { MODELS, REPO_ROOT } from "./config.js";
 
 // ─────────────────────────────────────────────────────────────

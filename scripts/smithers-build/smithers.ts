@@ -9,7 +9,7 @@ import {
   Parallel,
   Ralph,
   Branch,
-} from "smithers-orchestrator";
+} from "smthrs";
 import { outputSchemas } from "./db/schemas.js";
 
 const DB_PATH = "./smithers.db";
